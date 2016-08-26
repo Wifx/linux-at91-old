@@ -80,7 +80,7 @@
 	ahb {
 		apb {
 			spi0: spi@f8010000 {
-				cs-gpios = <&pioC 3 0>;
+				cs-gpios = <&pioD 31 0>;
 				status = "okay";
 				spidev@0 {
 					compatible = "spidev";
