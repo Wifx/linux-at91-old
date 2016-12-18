@@ -99,6 +99,18 @@
 				};
 			};
 
+			i2c2: i2c@f8024000 {
+				status = "okay";
+			};
+
+			i2cmux {
+				compatible = "i2c-mux-pinctrl";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				i2c-parent = <&i2c2>;
+			};
+
 			macb0: ethernet@f8020000 {
 				phy-mode = "rmii";
 				status = "okay";
@@ -154,6 +166,10 @@
 					pinctrl_sx1301_scanmode: sx1301_scanmode {
 						atmel,pins =
 							<AT91_PIOA 2 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_DOWN>;
+					};
+					pinctrl_i2c2_enable: i2c2_enable {
+						atmel,pins =
+							<AT91_PIOB 31 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_DOWN>;
 					};
 				};
 			};
