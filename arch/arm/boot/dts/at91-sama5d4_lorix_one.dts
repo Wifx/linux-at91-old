@@ -101,14 +101,47 @@
 
 			i2c2: i2c@f8024000 {
 				status = "okay";
+
+				#address-cells = <1>;
+				#size-cells = <0>;
 			};
 
-			i2cmux {
-				compatible = "i2c-mux-pinctrl";
+			i2c3: i2c@fc038000 {
+				status = "okay";
+
 				#address-cells = <1>;
 				#size-cells = <0>;
 
-				i2c-parent = <&i2c2>;
+				/*
+				pmic: act8865@5b {
+					compatible = "active-semi,act8865";
+					reg = <0x5b>;
+					status = "okay";
+
+					regulators {
+						vcc_1v8_reg: DCDC_REG1 {
+							regulator-name = "VCC_1V8";
+							regulator-min-microvolt = <1800000>;
+							regulator-max-microvolt = <1800000>;
+							regulator-always-on;
+						};
+
+						vcc_3v3_reg: DCDC_REG3 {
+							regulator-name = "VCC_3V3";
+							regulator-min-microvolt = <3300000>;
+							regulator-max-microvolt = <3300000>;
+							regulator-always-on;
+						};
+
+						vddana_reg: LDO_REG1 {
+							regulator-name = "FUSE_2V5";
+							regulator-min-microvolt = <2500000>;
+							regulator-max-microvolt = <2500000>;
+							regulator-always-on;
+						};
+					};
+				};
+				*/
 			};
 
 			macb0: ethernet@f8020000 {
@@ -166,10 +199,6 @@
 					pinctrl_sx1301_scanmode: sx1301_scanmode {
 						atmel,pins =
 							<AT91_PIOA 2 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_DOWN>;
-					};
-					pinctrl_i2c2_enable: i2c2_enable {
-						atmel,pins =
-							<AT91_PIOB 31 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_DOWN>;
 					};
 				};
 			};
@@ -231,22 +260,64 @@
 		compatible = "gpio-leds";
 		status = "okay";
 
-		d8 {
-			label = "d8";
+		led_power {
+			label = "power";
 			gpios = <&pioD 30 GPIO_ACTIVE_HIGH>;
-			default-state = "on";
+			default-state = "off";
 		};
 
-		d10 {
-			label = "d10";
-			gpios = <&pioE 15 GPIO_ACTIVE_LOW>;
+		led_sys {
+			label = "sys";
+			gpios = <&pioE 15 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
 			linux,default-trigger = "heartbeat";
 		};
 	};
 
-	vcc_3v3_reg: fixedregulator@0 {
+	i2cmux {
+		compatible = "i2c-mux-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		mux-gpios = <&pioB 31 GPIO_ACTIVE_HIGH>;
+		i2c-parent = <&i2c2>;
+		idle-state = <0>;
+
+		i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pmic-lorix@60 {
+				compatible = "wifx,pmic-lorix";
+				reg = <0x60>;
+
+				leds {
+					compatible = "wifx,pmic-lorix-led";
+					#address-cells = <1>;
+					#size-cells = <0>;
+					led-control = <0x000 0x000 0x0e0 0x000>;
+
+					sysled {
+						reg = <0>;
+						label = "status:blue:live";
+						linux,default-trigger = "heartbeat";
+					};
+				};
+			};
+		};
+	};
+
+	vddbu_2v_reg: fixedregulator@0 {
 		compatible = "regulator-fixed";
-		regulator-name = "VCC 3V3";
+		regulator-name = "VDDBU 2V";
+		regulator-min-microvolt = <2000000>;
+		regulator-max-microvolt = <2000000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	vcc_3v3_reg: fixedregulator@1 {
+		regulator-name = "VCC_3V3";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 		regulator-boot-on;
