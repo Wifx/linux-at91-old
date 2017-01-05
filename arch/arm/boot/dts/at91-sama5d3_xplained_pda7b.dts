@@ -304,6 +304,7 @@
 		regulator-name = "mmc0-card-supply";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
 	};
 
 	gpio_keys {
@@ -316,7 +317,7 @@
 			label = "PB_USER";
 			gpios = <&pioE 29 GPIO_ACTIVE_LOW>;
 			linux,code = <0x104>;
-			gpio-key,wakeup;
+			wakeup-source;
 		};
 	};
 

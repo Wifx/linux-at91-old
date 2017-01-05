@@ -22,6 +22,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
+#include <linux/platform_data/atmel.h>
 #include <linux/io.h>
 #include <linux/clk/at91_pmc.h>
 #include <linux/mfd/syscon.h>
@@ -33,6 +34,7 @@
 #include <asm/mach/irq.h>
 #include <asm/fncpy.h>
 #include <asm/cacheflush.h>
+#include <asm/system_misc.h>
 
 #include "generic.h"
 #include "pm.h"
@@ -40,9 +42,7 @@
 #define ULP0_MODE	0x00
 #define ULP1_MODE	0x11
 
-#define SAMA5D2_PMC_VERSION	0x20540
-
-void __iomem *pmc;
+static void __iomem *pmc;
 
 /*
  * FIXME: this is needed to communicate between the pinctrl driver and
@@ -50,8 +50,10 @@ void __iomem *pmc;
  * implementation should be moved down into the pinctrl driver and get
  * called as part of the generic suspend/resume path.
  */
+#ifdef CONFIG_PINCTRL_AT91
 extern void at91_pinctrl_gpio_suspend(void);
 extern void at91_pinctrl_gpio_resume(void);
+#endif
 
 static struct {
 	unsigned long uhp_udp_mask;
@@ -149,7 +151,7 @@ static void at91_pm_suspend(suspend_state_t state)
 	if (state == PM_SUSPEND_MEM) {
 		pm_data |= AT91_PM_MODE(AT91_PM_SLOW_CLOCK);
 		if (at91_pm_data.ulp_mode == ULP1_MODE)
-			pm_data |=  AT91_PM_ULP(AT91_PM_ULP1_MODE);
+			pm_data |= AT91_PM_ULP(AT91_PM_ULP1_MODE);
 	}
 
 	flush_cache_all();
@@ -163,8 +165,9 @@ static void at91_pm_suspend(suspend_state_t state)
 
 static int at91_pm_enter(suspend_state_t state)
 {
+#ifdef CONFIG_PINCTRL_AT91
 	at91_pinctrl_gpio_suspend();
-
+#endif
 	switch (state) {
 	/*
 	 * Suspend-to-RAM is like STANDBY plus slow clock mode, so
@@ -204,7 +207,9 @@ static int at91_pm_enter(suspend_state_t state)
 error:
 	target_state = PM_SUSPEND_ON;
 
+#ifdef CONFIG_PINCTRL_AT91
 	at91_pinctrl_gpio_resume();
+#endif
 	return 0;
 }
 
@@ -323,7 +328,7 @@ static void at91sam9_sdram_standby(void)
 		at91_ramc_write(1, AT91_SDRAMC_LPR, saved_lpr1);
 }
 
-static const struct of_device_id ramc_ids[] __initconst = {
+static const struct of_device_id const ramc_ids[] __initconst = {
 	{ .compatible = "atmel,at91rm9200-sdramc", .data = at91rm9200_standby },
 	{ .compatible = "atmel,at91sam9260-sdramc", .data = at91sam9_sdram_standby },
 	{ .compatible = "atmel,at91sam9g45-ddramc", .data = at91_ddr_standby },
@@ -360,6 +365,21 @@ static __init void at91_dt_ramc(void)
 	at91_pm_set_standby(standby);
 }
 
+static void at91rm9200_idle(void)
+{
+	/*
+	 * Disable the processor clock.  The processor will be automatically
+	 * re-enabled by an interrupt or by a reset.
+	 */
+	writel(AT91_PMC_PCK, pmc + AT91_PMC_SCDR);
+}
+
+static void at91sam9_idle(void)
+{
+	writel(AT91_PMC_PCK, pmc + AT91_PMC_SCDR);
+	cpu_do_idle();
+}
+
 static void __init at91_pm_sram_init(void)
 {
 	struct gen_pool *sram_pool;
@@ -381,7 +401,7 @@ static void __init at91_pm_sram_init(void)
 		return;
 	}
 
-	sram_pool = dev_get_gen_pool(&pdev->dev);
+	sram_pool = gen_pool_get(&pdev->dev, NULL);
 	if (!sram_pool) {
 		pr_warn("%s: sram pool unavailable!\n", __func__);
 		return;
@@ -406,99 +426,7 @@ static void __init at91_pm_sram_init(void)
 			&at91_pm_suspend_in_sram, at91_pm_suspend_in_sram_sz);
 }
 
-static int __init at91_pmc_fast_startup_init(void)
-{
-	struct device_node *np;
-	struct regmap *regmap;
-	u32 mode = 0, polarity = 0;
-
-	np = of_find_compatible_node(NULL, NULL,
-				     "atmel,sama5d2-pmc-fast-startup");
-	if (!np)
-		return -ENODEV;
-
-	regmap = syscon_node_to_regmap(of_get_parent(np));
-	if (IS_ERR(regmap)) {
-		pr_info("AT91: failed to find PMC fast startup\n");
-		return PTR_ERR(regmap);
-	}
-
-	mode |= of_property_read_bool(np, "atmel,fast-startup-wake-up") ?
-		AT91_PMC_FSTT0 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-secumod") ?
-		AT91_PMC_FSTT1 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu0") ?
-		AT91_PMC_FSTT2 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu1") ?
-		AT91_PMC_FSTT3 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu2") ?
-		AT91_PMC_FSTT4 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu3") ?
-		AT91_PMC_FSTT5 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu4") ?
-		AT91_PMC_FSTT6 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu5") ?
-		AT91_PMC_FSTT7 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu6") ?
-		AT91_PMC_FSTT8 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-piobu7") ?
-		AT91_PMC_FSTT9 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-gmac-wol") ?
-		AT91_PMC_FSTT10 : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-rtc-alarm") ?
-		AT91_PMC_RTCAL : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-usb-resume") ?
-		AT91_PMC_USBAL : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-sdmmc-cd") ?
-		AT91_PMC_SDMMC_CD : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-rxlp-match") ?
-		AT91_PMC_RXLP_MCE : 0;
-	mode |= of_property_read_bool(np, "atmel,fast-startup-acc-comparison") ?
-		AT91_PMC_ACC_CE : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-wkup-pin-high") ? AT91_PMC_FSTP0 : 0;
-
-	if (mode & AT91_PMC_FSTT1)
-		polarity |= AT91_PMC_FSTP1;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu0-high") ? AT91_PMC_FSTP2 : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu1-high") ? AT91_PMC_FSTP3 : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu2-high") ? AT91_PMC_FSTP4 : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu3-high") ? AT91_PMC_FSTP5 : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu4-high") ? AT91_PMC_FSTP6 : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu5-high") ? AT91_PMC_FSTP7 : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu6-high") ? AT91_PMC_FSTP8 : 0;
-
-	polarity |= of_property_read_bool(np,
-		"atmel,fast-startup-piobu7-high") ? AT91_PMC_FSTP9 : 0;
-
-	if (mode & AT91_PMC_FSTT10)
-		polarity |= AT91_PMC_FSTP10;
-
-	regmap_write(regmap, AT91_PMC_FSMR, mode);
-
-	regmap_write(regmap, AT91_PMC_FSPR, polarity);
-
-	of_node_put(np);
-
-	return 0;
-}
-
-static const struct of_device_id atmel_pmc_ids[] = {
+static const struct of_device_id atmel_pmc_ids[] __initconst = {
 	{ .compatible = "atmel,at91rm9200-pmc"  },
 	{ .compatible = "atmel,at91sam9260-pmc" },
 	{ .compatible = "atmel,at91sam9g45-pmc" },
@@ -509,7 +437,7 @@ static const struct of_device_id atmel_pmc_ids[] = {
 	{ /* sentinel */ },
 };
 
-static void __init at91_pm_init(void)
+static void __init at91_pm_init(void (*pm_idle)(void))
 {
 	struct device_node *pmc_np;
 
@@ -519,9 +447,12 @@ static void __init at91_pm_init(void)
 	pmc_np = of_find_matching_node(NULL, atmel_pmc_ids);
 	pmc = of_iomap(pmc_np, 0);
 	if (!pmc) {
-		pr_info("AT91: PM not supported, PMC not found\n");
+		pr_err("AT91: PM not supported, PMC not found\n");
 		return;
 	}
+
+	if (pm_idle)
+		arm_pm_idle = pm_idle;
 
 	at91_pm_sram_init();
 
@@ -529,6 +460,68 @@ static void __init at91_pm_init(void)
 		suspend_set_ops(&at91_pm_ops);
 	else
 		pr_info("AT91: PM not supported, due to no SRAM allocated\n");
+}
+
+static int __init at91_pmc_fast_startup_init(void)
+{
+	struct device_node *np, *cnp;
+	struct regmap *regmap;
+	u32 input, input_mask;
+	u32 mode = 0, polarity = 0;
+
+	np = of_find_compatible_node(NULL, NULL,
+				     "atmel,sama5d2-pmc-fast-startup");
+	if (!np)
+		return -ENODEV;
+
+	regmap = syscon_node_to_regmap(of_get_parent(np));
+	if (IS_ERR(regmap)) {
+		pr_info("AT91: failed to find PMC fast startup node\n");
+		return PTR_ERR(regmap);
+	}
+
+	for_each_child_of_node(np, cnp) {
+		if (of_property_read_u32(cnp, "reg", &input)) {
+			pr_warn("AT91: reg property is missing for %s\n",
+				cnp->full_name);
+			continue;
+		}
+
+		input_mask = 1 << input;
+		if (!(input_mask & AT91_PMC_FS_INPUT_MASK)) {
+			pr_warn("AT91: wake-up input %d out of range\n", input);
+			continue;
+		}
+		mode |= input_mask;
+
+		if (of_property_read_bool(cnp, "atmel,wakeup-active-high"))
+			polarity |= input_mask;
+	}
+
+	if (of_property_read_bool(np, "atmel,wakeup-rtc-timer"))
+		mode |= AT91_PMC_RTCAL;
+
+	if (of_property_read_bool(np, "atmel,wakeup-usb-resume"))
+		mode |= AT91_PMC_USBAL;
+
+	if (of_property_read_bool(np, "atmel,wakeup-sdmmc-cd"))
+		mode |= AT91_PMC_SDMMC_CD;
+
+	if (of_property_read_bool(np, "atmel,wakeup-rxlp-match"))
+		mode |= AT91_PMC_RXLP_MCE;
+
+	if (of_property_read_bool(np, "atmel,wakeup-acc-comparison"))
+		mode |= AT91_PMC_ACC_CE;
+
+	pr_debug("AT91: mode = 0x%x, ploarity = 0%x\n", mode, polarity);
+
+	regmap_write(regmap, AT91_PMC_FSMR, mode);
+
+	regmap_write(regmap, AT91_PMC_FSPR, polarity);
+
+	of_node_put(np);
+
+	return 0;
 }
 
 void __init at91rm9200_pm_init(void)
@@ -543,7 +536,7 @@ void __init at91rm9200_pm_init(void)
 	at91_pm_data.uhp_udp_mask = AT91RM9200_PMC_UHP | AT91RM9200_PMC_UDP;
 	at91_pm_data.memctrl = AT91_MEMCTRL_MC;
 
-	at91_pm_init();
+	at91_pm_init(at91rm9200_idle);
 }
 
 void __init at91sam9260_pm_init(void)
@@ -551,7 +544,7 @@ void __init at91sam9260_pm_init(void)
 	at91_dt_ramc();
 	at91_pm_data.memctrl = AT91_MEMCTRL_SDRAMC;
 	at91_pm_data.uhp_udp_mask = AT91SAM926x_PMC_UHP | AT91SAM926x_PMC_UDP;
-	at91_pm_init();
+	at91_pm_init(at91sam9_idle);
 }
 
 void __init at91sam9g45_pm_init(void)
@@ -559,7 +552,7 @@ void __init at91sam9g45_pm_init(void)
 	at91_dt_ramc();
 	at91_pm_data.uhp_udp_mask = AT91SAM926x_PMC_UHP;
 	at91_pm_data.memctrl = AT91_MEMCTRL_DDRSDR;
-	at91_pm_init();
+	at91_pm_init(at91sam9_idle);
 }
 
 void __init at91sam9x5_pm_init(void)
@@ -567,10 +560,21 @@ void __init at91sam9x5_pm_init(void)
 	at91_dt_ramc();
 	at91_pm_data.uhp_udp_mask = AT91SAM926x_PMC_UHP | AT91SAM926x_PMC_UDP;
 	at91_pm_data.memctrl = AT91_MEMCTRL_DDRSDR;
-	at91_pm_init();
-
-	if (readl(pmc + AT91_PMC_VERSION) >= SAMA5D2_PMC_VERSION)
-		at91_pm_data.ulp_mode = ULP1_MODE;
-
-	at91_pmc_fast_startup_init();
+	at91_pm_init(at91sam9_idle);
 }
+
+void __init sama5_pm_init(void)
+{
+	at91_dt_ramc();
+	at91_pm_data.uhp_udp_mask = AT91SAM926x_PMC_UHP | AT91SAM926x_PMC_UDP;
+	at91_pm_data.memctrl = AT91_MEMCTRL_DDRSDR;
+	at91_pm_init(NULL);
+}
+
+void __init sama5d2_pm_init(void)
+{
+	sama5_pm_init();
+
+	at91_pm_data.ulp_mode = ULP1_MODE;
+	at91_pmc_fast_startup_init();
+ }

@@ -1,5 +1,6 @@
 menuconfig ARCH_TEGRA
-	bool "NVIDIA Tegra" if ARCH_MULTI_V7
+	bool "NVIDIA Tegra"
+	depends on ARCH_MULTI_V7
 	select ARCH_REQUIRE_GPIOLIB
 	select ARCH_SUPPORTS_TRUSTED_FOUNDATIONS
 	select ARM_AMBA
@@ -8,6 +9,7 @@ menuconfig ARCH_TEGRA
 	select HAVE_ARM_SCU if SMP
 	select HAVE_ARM_TWD if SMP
 	select PINCTRL
+	select PM_OPP
 	select ARCH_HAS_RESET_CONTROLLER
 	select RESET_CONTROLLER
 	select SOC_BUS

@@ -220,7 +220,7 @@ static void pch_gpio_setup(struct pch_gpio *chip)
 	struct gpio_chip *gpio = &chip->gpio;
 
 	gpio->label = dev_name(chip->dev);
-	gpio->dev = chip->dev;
+	gpio->parent = chip->dev;
 	gpio->owner = THIS_MODULE;
 	gpio->direction_input = pch_gpio_direction_input;
 	gpio->get = pch_gpio_get;
@@ -281,9 +281,9 @@ static int pch_irq_type(struct irq_data *d, unsigned int type)
 
 	/* And the handler */
 	if (type & (IRQ_TYPE_LEVEL_LOW | IRQ_TYPE_LEVEL_HIGH))
-		__irq_set_handler_locked(d->irq, handle_level_irq);
+		irq_set_handler_locked(d, handle_level_irq);
 	else if (type & (IRQ_TYPE_EDGE_FALLING | IRQ_TYPE_EDGE_RISING))
-		__irq_set_handler_locked(d->irq, handle_edge_irq);
+		irq_set_handler_locked(d, handle_edge_irq);
 
 unlock:
 	spin_unlock_irqrestore(&chip->spinlock, flags);

@@ -446,7 +446,7 @@ static int mcp23s08_irq_reqres(struct irq_data *data)
 	struct mcp23s08 *mcp = irq_data_get_irq_chip_data(data);
 
 	if (gpiochip_lock_as_irq(&mcp->chip, data->hwirq)) {
-		dev_err(mcp->chip.dev,
+		dev_err(mcp->chip.parent,
 			"unable to lock HW IRQ %lu for IRQ usage\n",
 			data->hwirq);
 		return -EINVAL;
@@ -481,7 +481,8 @@ static int mcp23s08_irq_setup(struct mcp23s08 *mcp)
 
 	mutex_init(&mcp->irq_lock);
 
-	mcp->irq_domain = irq_domain_add_linear(chip->dev->of_node, chip->ngpio,
+	mcp->irq_domain = irq_domain_add_linear(chip->parent->of_node,
+						chip->ngpio,
 						&irq_domain_simple_ops, mcp);
 	if (!mcp->irq_domain)
 		return -ENODEV;
@@ -491,10 +492,11 @@ static int mcp23s08_irq_setup(struct mcp23s08 *mcp)
 	else
 		irqflags |= IRQF_TRIGGER_LOW;
 
-	err = devm_request_threaded_irq(chip->dev, mcp->irq, NULL, mcp23s08_irq,
-					irqflags, dev_name(chip->dev), mcp);
+	err = devm_request_threaded_irq(chip->parent, mcp->irq, NULL,
+					mcp23s08_irq,
+					irqflags, dev_name(chip->parent), mcp);
 	if (err != 0) {
-		dev_err(chip->dev, "unable to request IRQ#%d: %d\n",
+		dev_err(chip->parent, "unable to request IRQ#%d: %d\n",
 			mcp->irq, err);
 		return err;
 	}
@@ -507,11 +509,7 @@ static int mcp23s08_irq_setup(struct mcp23s08 *mcp)
 		irq_set_chip_data(irq, mcp);
 		irq_set_chip(irq, &mcp23s08_irq_chip);
 		irq_set_nested_thread(irq, true);
-#ifdef CONFIG_ARM
-		set_irq_flags(irq, IRQF_VALID);
-#else
 		irq_set_noprobe(irq);
-#endif
 	}
 	return 0;
 }
@@ -642,7 +640,7 @@ static int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 
 	mcp->chip.base = pdata->base;
 	mcp->chip.can_sleep = true;
-	mcp->chip.dev = dev;
+	mcp->chip.parent = dev;
 	mcp->chip.owner = THIS_MODULE;
 
 	/* verify MCP_IOCON.SEQOP = 0, so sequential reads work,
@@ -656,7 +654,7 @@ static int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 	mcp->irq_controller = pdata->irq_controller;
 	if (mcp->irq && mcp->irq_controller) {
 		mcp->irq_active_high =
-			of_property_read_bool(mcp->chip.dev->of_node,
+			of_property_read_bool(mcp->chip.parent->of_node,
 					      "microchip,irq-active-high");
 
 		if (type == MCP_TYPE_017)
@@ -852,7 +850,6 @@ MODULE_DEVICE_TABLE(i2c, mcp230xx_id);
 static struct i2c_driver mcp230xx_driver = {
 	.driver = {
 		.name	= "mcp230xx",
-		.owner	= THIS_MODULE,
 		.of_match_table = of_match_ptr(mcp23s08_i2c_of_match),
 	},
 	.probe		= mcp230xx_probe,
@@ -1025,7 +1022,6 @@ static struct spi_driver mcp23s08_driver = {
 	.id_table	= mcp23s08_ids,
 	.driver = {
 		.name	= "mcp23s08",
-		.owner	= THIS_MODULE,
 		.of_match_table = of_match_ptr(mcp23s08_spi_of_match),
 	},
 };

@@ -61,8 +61,8 @@ int pin_config_get_for_pin(struct pinctrl_dev *pctldev, unsigned pin,
 	const struct pinconf_ops *ops = pctldev->desc->confops;
 
 	if (!ops || !ops->pin_config_get) {
-		dev_dbg(pctldev->dev, "cannot get pin configuration, missing "
-			"pin_config_get() function in driver\n");
+		dev_dbg(pctldev->dev,
+			"cannot get pin configuration, .pin_config_get missing in driver\n");
 		return -ENOTSUPP;
 	}
 
@@ -202,7 +202,7 @@ int pinconf_apply_setting(struct pinctrl_setting const *setting)
 
 #ifdef CONFIG_DEBUG_FS
 
-void pinconf_show_config(struct seq_file *s, struct pinctrl_dev *pctldev,
+static void pinconf_show_config(struct seq_file *s, struct pinctrl_dev *pctldev,
 		      unsigned long *configs, unsigned num_configs)
 {
 	const struct pinconf_ops *confops;
@@ -411,7 +411,7 @@ static int pinconf_dbg_config_print(struct seq_file *s, void *d)
 	const struct pinctrl_map *found = NULL;
 	struct pinctrl_dev *pctldev;
 	struct dbg_cfg *dbg = &pinconf_dbg_conf;
-	int i, j;
+	int i;
 
 	mutex_lock(&pinctrl_maps_mutex);
 
@@ -424,13 +424,10 @@ static int pinconf_dbg_config_print(struct seq_file *s, void *d)
 		if (strcmp(map->name, dbg->state_name))
 			continue;
 
-		for (j = 0; j < map->data.configs.num_configs; j++) {
-			if (!strcmp(map->data.configs.group_or_pin,
-					dbg->pin_name)) {
-				/* We found the right pin / state */
-				found = map;
-				break;
-			}
+		if (!strcmp(map->data.configs.group_or_pin, dbg->pin_name)) {
+			/* We found the right pin */
+			found = map;
+			break;
 		}
 	}
 
@@ -460,10 +457,12 @@ exit:
  * pinconf_dbg_config_write() - modify the pinctrl config in the pinctrl
  * map, of a dev/pin/state entry based on user entries to pinconf-config
  * @user_buf: contains the modification request with expected format:
- *     modify config_pin <devicename> <state> <pinname> <newvalue>
+ *     modify <config> <devicename> <state> <name> <newvalue>
  * modify is literal string, alternatives like add/delete not supported yet
- * config_pin is literal, alternatives like config_mux not supported yet
- * <devicename> <state> <pinname> are values that should match the pinctrl-maps
+ * <config> is the configuration to be changed. Supported configs are
+ *     "config_pin" or "config_group", alternatives like config_mux are not
+ *     supported yet.
+ * <devicename> <state> <name> are values that should match the pinctrl-maps
  * <newvalue> reflects the new config and is driver dependant
  */
 static ssize_t pinconf_dbg_config_write(struct file *file,
@@ -501,13 +500,19 @@ static ssize_t pinconf_dbg_config_write(struct file *file,
 	if (strcmp(token, "modify"))
 		return -EINVAL;
 
-	/* Get arg type: "config_pin" type supported so far */
+	/*
+	 * Get arg type: "config_pin" and "config_group"
+	 *                types are supported so far
+	 */
 	token = strsep(&b, " ");
 	if (!token)
 		return -EINVAL;
-	if (strcmp(token, "config_pin"))
+	if (!strcmp(token, "config_pin"))
+		dbg->map_type = PIN_MAP_TYPE_CONFIGS_PIN;
+	else if (!strcmp(token, "config_group"))
+		dbg->map_type = PIN_MAP_TYPE_CONFIGS_GROUP;
+	else
 		return -EINVAL;
-	dbg->map_type = PIN_MAP_TYPE_CONFIGS_PIN;
 
 	/* get arg 'device_name' */
 	token = strsep(&b, " ");

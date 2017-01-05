@@ -326,7 +326,8 @@ static int atmel_hlcdc_crtc_atomic_check(struct drm_crtc *c,
 	return atmel_hlcdc_plane_prepare_ahb_routing(s);
 }
 
-static void atmel_hlcdc_crtc_atomic_begin(struct drm_crtc *c)
+static void atmel_hlcdc_crtc_atomic_begin(struct drm_crtc *c,
+					  struct drm_crtc_state *old_s)
 {
 	struct atmel_hlcdc_crtc *crtc = drm_crtc_to_atmel_hlcdc_crtc(c);
 
@@ -340,7 +341,8 @@ static void atmel_hlcdc_crtc_atomic_begin(struct drm_crtc *c)
 	}
 }
 
-static void atmel_hlcdc_crtc_atomic_flush(struct drm_crtc *crtc)
+static void atmel_hlcdc_crtc_atomic_flush(struct drm_crtc *crtc,
+					  struct drm_crtc_state *old_s)
 {
 	/* TODO: write common plane control register if available */
 }
@@ -403,9 +405,12 @@ void atmel_hlcdc_crtc_irq(struct drm_crtc *c)
 	atmel_hlcdc_crtc_finish_page_flip(drm_crtc_to_atmel_hlcdc_crtc(c));
 }
 
-void atmel_hlcdc_crtc_reset(struct drm_crtc *crtc)
+static void atmel_hlcdc_crtc_reset(struct drm_crtc *crtc)
 {
 	struct atmel_hlcdc_crtc_state *state;
+
+	if (crtc->state && crtc->state->mode_blob)
+		drm_property_unreference_blob(crtc->state->mode_blob);
 
 	if (crtc->state) {
 		state = drm_crtc_state_to_atmel_hlcdc_crtc_state(crtc->state);
@@ -428,8 +433,9 @@ atmel_hlcdc_crtc_duplicate_state(struct drm_crtc *crtc)
 		return NULL;
 
 	state = kmalloc(sizeof(*state), GFP_KERNEL);
-	if (state)
-		__drm_atomic_helper_crtc_duplicate_state(crtc, &state->base);
+	if (!state)
+		return NULL;
+	__drm_atomic_helper_crtc_duplicate_state(crtc, &state->base);
 
 	cur = drm_crtc_state_to_atmel_hlcdc_crtc_state(crtc->state);
 	state->output_mode = cur->output_mode;
@@ -473,7 +479,7 @@ int atmel_hlcdc_crtc_create(struct drm_device *dev)
 	ret = drm_crtc_init_with_planes(dev, &crtc->base,
 				&planes->primary->base,
 				planes->cursor ? &planes->cursor->base : NULL,
-				&atmel_hlcdc_crtc_funcs);
+				&atmel_hlcdc_crtc_funcs, NULL);
 	if (ret < 0)
 		goto fail;
 

@@ -44,6 +44,7 @@ Required properties:
 - reg : should specify the address and size used for NFC command registers,
         NFC registers and NFC SRAM. NFC SRAM address and size can be absent
         if don't want to use it.
+- clocks: phandle to the peripheral clock
 Optional properties:
 - atmel,write-by-sram: boolean to enable NFC write by SRAM.
 

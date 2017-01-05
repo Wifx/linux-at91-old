@@ -315,7 +315,8 @@ static void ts5500_disable_irq(struct ts5500_priv *priv)
 	else if (priv->hwirq == 1)
 		ts5500_clear_mask(BIT(6), 0x7d); /* LCD_RS on IRQ1 */
 	else
-		dev_err(priv->gpio_chip.dev, "invalid hwirq %d\n", priv->hwirq);
+		dev_err(priv->gpio_chip.parent, "invalid hwirq %d\n",
+			priv->hwirq);
 	spin_unlock_irqrestore(&priv->lock, flags);
 }
 
@@ -346,7 +347,7 @@ static int ts5500_dio_probe(struct platform_device *pdev)
 
 	priv->gpio_chip.owner = THIS_MODULE;
 	priv->gpio_chip.label = name;
-	priv->gpio_chip.dev = dev;
+	priv->gpio_chip.parent = dev;
 	priv->gpio_chip.direction_input = ts5500_gpio_input;
 	priv->gpio_chip.direction_output = ts5500_gpio_output;
 	priv->gpio_chip.get = ts5500_gpio_get;
@@ -440,7 +441,7 @@ static int ts5500_dio_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_device_id ts5500_dio_ids[] = {
+static const struct platform_device_id ts5500_dio_ids[] = {
 	{ "ts5500-dio1", TS5500_DIO1 },
 	{ "ts5500-dio2", TS5500_DIO2 },
 	{ "ts5500-dio-lcd", TS5500_LCD },

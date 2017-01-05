@@ -37,6 +37,7 @@
  * @xstride: value to add to the pixel pointer between each line
  * @pstride: value to add to the pixel pointer between each pixel
  * @nplanes: number of planes (deduced from pixel_format)
+ * @prepared: plane update has been prepared
  */
 struct atmel_hlcdc_plane_state {
 	struct drm_plane_state base;
@@ -66,6 +67,7 @@ struct atmel_hlcdc_plane_state {
 	int xstride[ATMEL_HLCDC_MAX_PLANES];
 	int pstride[ATMEL_HLCDC_MAX_PLANES];
 	int nplanes;
+	bool prepared;
 };
 
 static inline struct atmel_hlcdc_plane_state *
@@ -318,25 +320,27 @@ atmel_hlcdc_plane_update_pos_and_size(struct atmel_hlcdc_plane *plane,
 			u32 *coeff_tab = heo_upscaling_ycoef;
 			u32 max_memsize;
 
-			if (state->crtc_w < state->src_w)
+			if (state->crtc_h < state->src_h)
 				coeff_tab = heo_downscaling_ycoef;
 			for (i = 0; i < ARRAY_SIZE(heo_upscaling_ycoef); i++)
 				atmel_hlcdc_layer_update_cfg(&plane->layer,
 							     33 + i,
 							     0xffffffff,
 							     coeff_tab[i]);
-			factor = ((8 * 256 * state->src_w) - (256 * 4)) /
-				 state->crtc_w;
+			factor = ((8 * 256 * state->src_h) - (256 * 4)) /
+				 state->crtc_h;
 			factor++;
-			max_memsize = ((factor * state->crtc_w) + (256 * 4)) /
+			max_memsize = ((factor * state->crtc_h) + (256 * 4)) /
 				      2048;
-			if (max_memsize > state->src_w)
+			if (max_memsize > state->src_h)
 				factor--;
 			factor_reg |= (factor << 16) | 0x80000000;
 		}
 
 		atmel_hlcdc_layer_update_cfg(&plane->layer, 13, 0xffffffff,
 					     factor_reg);
+	} else {
+		atmel_hlcdc_layer_update_cfg(&plane->layer, 13, 0xffffffff, 0);
 	}
 }
 
@@ -597,7 +601,7 @@ static int atmel_hlcdc_plane_atomic_check(struct drm_plane *p,
 	if (!state->base.crtc || !fb)
 		return 0;
 
-	crtc_state = s->state->crtc_states[drm_crtc_index(s->crtc)];
+	crtc_state = drm_atomic_get_existing_crtc_state(s->state, s->crtc);
 	mode = &crtc_state->adjusted_mode;
 
 	state->src_x = s->src_x;
@@ -672,7 +676,7 @@ static int atmel_hlcdc_plane_atomic_check(struct drm_plane *p,
 		if (!state->bpp[i])
 			return -EINVAL;
 
-		switch (state->base.rotation & 0xf) {
+		switch (state->base.rotation & DRM_ROTATE_MASK) {
 		case BIT(DRM_ROTATE_90):
 			offset = ((y_offset + state->src_y + patched_src_w - 1) /
 				  ydiv) * fb->pitches[i];
@@ -751,30 +755,56 @@ static int atmel_hlcdc_plane_atomic_check(struct drm_plane *p,
 }
 
 static int atmel_hlcdc_plane_prepare_fb(struct drm_plane *p,
-					struct drm_framebuffer *fb,
 					const struct drm_plane_state *new_state)
 {
+	/*
+	 * FIXME: we should avoid this const -> non-const cast but it's
+	 * currently the only solution we have to modify the ->prepared
+	 * state and rollback the update request.
+	 * Ideally, we should rework the code to attach all the resources
+	 * to atmel_hlcdc_plane_state (including the DMA desc allocation),
+	 * but this require a complete rework of the atmel_hlcdc_layer
+	 * code.
+	 */
+	struct drm_plane_state *s = (struct drm_plane_state *)new_state;
 	struct atmel_hlcdc_plane *plane = drm_plane_to_atmel_hlcdc_plane(p);
+	struct atmel_hlcdc_plane_state *state =
+			drm_plane_state_to_atmel_hlcdc_plane_state(s);
 	int ret;
 
 	ret = atmel_hlcdc_layer_update_start(&plane->layer);
 	if (!ret)
-		plane->prepared = true;
+		state->prepared = true;
 
 	return ret;
 }
 
 static void atmel_hlcdc_plane_cleanup_fb(struct drm_plane *p,
-				struct drm_framebuffer *fb,
 				const struct drm_plane_state *old_state)
 {
+	/*
+	 * FIXME: we should avoid this const -> non-const cast but it's
+	 * currently the only solution we have to modify the ->prepared
+	 * state and rollback the update request.
+	 * Ideally, we should rework the code to attach all the resources
+	 * to atmel_hlcdc_plane_state (including the DMA desc allocation),
+	 * but this require a complete rework of the atmel_hlcdc_layer
+	 * code.
+	 */
+	struct drm_plane_state *s = (struct drm_plane_state *)old_state;
 	struct atmel_hlcdc_plane *plane = drm_plane_to_atmel_hlcdc_plane(p);
+	struct atmel_hlcdc_plane_state *state =
+			drm_plane_state_to_atmel_hlcdc_plane_state(s);
 
-	if (!plane->prepared)
+	/*
+	 * The Request has already been applied or cancelled, nothing to do
+	 * here.
+	 */
+	if (!state->prepared)
 		return;
 
 	atmel_hlcdc_layer_update_rollback(&plane->layer);
-	plane->prepared = false;
+	state->prepared = false;
 }
 
 static void atmel_hlcdc_plane_atomic_update(struct drm_plane *p,
@@ -940,6 +970,7 @@ atmel_hlcdc_plane_atomic_duplicate_state(struct drm_plane *p)
 		return NULL;
 
 	copy->disc_updated = false;
+	copy->prepared = false;
 
 	if (copy->base.fb)
 		drm_framebuffer_reference(copy->base.fb);
@@ -998,7 +1029,7 @@ atmel_hlcdc_plane_create(struct drm_device *dev,
 	ret = drm_universal_plane_init(dev, &plane->base, 0,
 				       &layer_plane_funcs,
 				       desc->formats->formats,
-				       desc->formats->nformats, type);
+				       desc->formats->nformats, type, NULL);
 	if (ret)
 		return ERR_PTR(ret);
 

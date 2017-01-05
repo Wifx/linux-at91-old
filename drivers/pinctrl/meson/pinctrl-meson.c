@@ -562,7 +562,7 @@ static int meson_gpiolib_register(struct meson_pinctrl *pc)
 		domain = &pc->domains[i];
 
 		domain->chip.label = domain->data->name;
-		domain->chip.dev = pc->dev;
+		domain->chip.parent = pc->dev;
 		domain->chip.request = meson_gpio_request;
 		domain->chip.free = meson_gpio_free;
 		domain->chip.direction_input = meson_gpio_direction_input;
@@ -738,9 +738,9 @@ static int meson_pinctrl_probe(struct platform_device *pdev)
 	pc->desc.npins		= pc->data->num_pins;
 
 	pc->pcdev = pinctrl_register(&pc->desc, pc->dev, pc);
-	if (!pc->pcdev) {
+	if (IS_ERR(pc->pcdev)) {
 		dev_err(pc->dev, "can't register pinctrl device");
-		return -EINVAL;
+		return PTR_ERR(pc->pcdev);
 	}
 
 	ret = meson_gpiolib_register(pc);

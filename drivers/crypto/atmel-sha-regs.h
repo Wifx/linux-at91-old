@@ -18,12 +18,7 @@
 #define SHA_MR_MODE_PDC			0x2
 #define SHA_MR_PROCDLY			(1 << 4)
 #define SHA_MR_UIHV			(1 << 5)
-#define SHA_MR_UIHV2			(1 << 6)
-#define SHA_MR_CHECK_MASK		(3 << 24)
-#define SHA_MR_CHECK_EHV		(1 << 24)
-#define SHA_MR_CHECK_MESSAGE		(2 << 24)
-#define SHA_MR_CHKCNT_OFFSET		(28)
-#define SHA_MR_CHKCNT_MASK		(0xf << 28)
+#define SHA_MR_UIEHV			(1 << 6)
 #define SHA_MR_ALGO_SHA1		(0 << 8)
 #define SHA_MR_ALGO_SHA256		(1 << 8)
 #define SHA_MR_ALGO_SHA384		(2 << 8)

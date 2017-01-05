@@ -22,6 +22,7 @@
 #include <linux/skbuff.h>
 
 #include <linux/semaphore.h>
+#include <linux/completion.h>
 
 #include <linux/mmc/host.h>
 #include <linux/mmc/sdio_func.h>
@@ -36,8 +37,6 @@ static struct notifier_block g_dev_notifier = {
 	.notifier_call = dev_state_ev_handler
 };
 
-#define IRQ_WAIT	1
-#define IRQ_NO_WAIT	0
 static struct semaphore close_exit_sync;
 
 static int wlan_deinit_locks(struct net_device *dev);
@@ -265,10 +264,12 @@ static struct net_device *get_if_handler(struct wilc *wilc, u8 *mac_header)
 
 	for (i = 0; i < wilc->vif_num; i++) {
 		if (wilc->vif[i]->mode == STATION_MODE)
-			if (!memcmp(bssid, wilc->vif[i]->bssid, ETH_ALEN))
+			if (ether_addr_equal_unaligned(bssid,
+						       wilc->vif[i]->bssid))
 				return wilc->vif[i]->ndev;
 		if (wilc->vif[i]->mode == AP_MODE)
-			if (!memcmp(bssid1, wilc->vif[i]->bssid, ETH_ALEN))
+			if (ether_addr_equal_unaligned(bssid1,
+						       wilc->vif[i]->bssid))
 				return wilc->vif[i]->ndev;
 	}
 
@@ -309,40 +310,27 @@ int wilc_wlan_get_num_conn_ifcs(struct wilc *wilc)
 	return ret_val;
 }
 
-#define USE_TX_BACKOFF_DELAY_IF_NO_BUFFERS
-
 static int linux_wlan_txq_task(void *vp)
 {
 	int ret, txq_count;
 	struct wilc_vif *vif;
 	struct wilc *wl;
 	struct net_device *dev = vp;
-#if defined USE_TX_BACKOFF_DELAY_IF_NO_BUFFERS
-#define TX_BACKOFF_WEIGHT_INCR_STEP (1)
-#define TX_BACKOFF_WEIGHT_DECR_STEP (1)
-#define TX_BACKOFF_WEIGHT_MAX (7)
-#define TX_BACKOFF_WEIGHT_MIN (0)
-#define TX_BACKOFF_WEIGHT_UNIT_MS (10)
-	int backoff_weight = TX_BACKOFF_WEIGHT_MIN;
-#endif
 
 	vif = netdev_priv(dev);
 	wl = vif->wilc;
 
-	up(&wl->txq_thread_started);
+	complete(&wl->txq_thread_started);
 	while (1) {
 		down(&wl->txq_event);
 
 		if (wl->close) {
-			up(&wl->txq_thread_started);
+			complete(&wl->txq_thread_started);
 
 			while (!kthread_should_stop())
 				schedule();
 			break;
 		}
-#if !defined USE_TX_BACKOFF_DELAY_IF_NO_BUFFERS
-		ret = wilc_wlan_handle_txq(dev, &txq_count);
-#else
 		do {
 			ret = wilc_wlan_handle_txq(dev, &txq_count);
 			if (txq_count < FLOW_CONTROL_LOWER_THRESHOLD) {
@@ -351,20 +339,7 @@ static int linux_wlan_txq_task(void *vp)
 				if (netif_queue_stopped(wl->vif[1]->ndev))
 					netif_wake_queue(wl->vif[1]->ndev);
 			}
-
-			if (ret == WILC_TX_ERR_NO_BUF) {
-				backoff_weight += TX_BACKOFF_WEIGHT_INCR_STEP;
-				if (backoff_weight > TX_BACKOFF_WEIGHT_MAX)
-					backoff_weight = TX_BACKOFF_WEIGHT_MAX;
-			} else {
-				if (backoff_weight > TX_BACKOFF_WEIGHT_MIN) {
-					backoff_weight -= TX_BACKOFF_WEIGHT_DECR_STEP;
-					if (backoff_weight < TX_BACKOFF_WEIGHT_MIN)
-						backoff_weight = TX_BACKOFF_WEIGHT_MIN;
-				}
-			}
 		} while (ret == WILC_TX_ERR_NO_BUF && !wl->close);
-#endif
 	}
 	return 0;
 }
@@ -393,7 +368,7 @@ int wilc_wlan_get_firmware(struct net_device *dev)
 		goto _fail_;
 
 	if (request_firmware(&wilc_firmware, firmware, wilc->dev) != 0) {
-		netdev_err(dev, "%s - firmare not available\n", firmware);
+		netdev_err(dev, "%s - firmware not available\n", firmware);
 		ret = -1;
 		goto _fail_;
 	}
@@ -413,7 +388,6 @@ static int linux_wlan_start_firmware(struct net_device *dev)
 
 	vif = netdev_priv(dev);
 	wilc = vif->wilc;
-
 #ifdef PREVENT_SDIO_HOST_FROM_SUSPEND
 	func = dev_to_sdio_func(wilc->dev);
 	pm_runtime_get_sync(mmc_dev(func->card->host));
@@ -461,7 +435,6 @@ static int linux_wlan_init_test_config(struct net_device *dev,
 				       struct wilc_vif *vif)
 {
 	unsigned char c_val[64];
-	unsigned char mac_add[] = {0x00, 0x80, 0xC2, 0x5E, 0xa2, 0xff};
 	struct wilc *wilc = vif->wilc;
 	struct wilc_priv *priv;
 	struct host_if_drv *hif_drv;
@@ -470,9 +443,6 @@ static int linux_wlan_init_test_config(struct net_device *dev,
 	priv = wiphy_priv(dev->ieee80211_ptr->wiphy);
 	hif_drv = (struct host_if_drv *)priv->hif_drv;
 	netdev_dbg(dev, "Host = %p\n", hif_drv);
-	wilc_get_mac_address(vif, mac_add);
-
-	netdev_dbg(dev, "MAC address is : %pM\n", mac_add);
 	wilc_get_chipid(wilc, false);
 
 	*(int *)c_val = 1;
@@ -634,11 +604,6 @@ static int linux_wlan_init_test_config(struct net_device *dev,
 			       0))
 		goto _fail_;
 
-	memcpy(c_val, mac_add, 6);
-
-	if (!wilc_wlan_cfg_set(vif, 0, WID_MAC_ADDR, c_val, 6, 0, 0))
-		goto _fail_;
-
 	c_val[0] = DETECT_PROTECT_REPORT;
 	if (!wilc_wlan_cfg_set(vif, 0, WID_11N_OBSS_NONHT_DETECTION, c_val, 1,
 			       0, 0))
@@ -703,14 +668,6 @@ void wilc1000_wlan_deinit(struct net_device *dev)
 
 		wilc_wlan_stop(wl);
 		wilc_wlan_cleanup(dev);
-#if defined(PLAT_ALLWINNER_A20) || defined(PLAT_ALLWINNER_A23) || defined(PLAT_ALLWINNER_A31)
-		if (!wl->dev_irq_num &&
-		    wl->hif_func->disable_interrupt) {
-			mutex_lock(&wl->hif_cs);
-			wl->hif_func->disable_interrupt(wl);
-			mutex_unlock(&wl->hif_cs);
-		}
-#endif
 		wlan_deinit_locks(dev);
 
 		wl->initialized = false;
@@ -739,8 +696,7 @@ static int wlan_init_locks(struct net_device *dev)
 
 	sema_init(&wl->cfg_event, 0);
 	sema_init(&wl->sync_event, 0);
-
-	sema_init(&wl->txq_thread_started, 0);
+	init_completion(&wl->txq_thread_started);
 
 	return 0;
 }
@@ -777,7 +733,7 @@ static int wlan_initialize_threads(struct net_device *dev)
 		wilc->close = 0;
 		return -ENOBUFS;
 	}
-	down(&wilc->txq_thread_started);
+	wait_for_completion(&wilc->txq_thread_started);
 
 	return 0;
 }
@@ -908,25 +864,20 @@ static int mac_init_fn(struct net_device *ndev)
 int wilc_mac_open(struct net_device *ndev)
 {
 	struct wilc_vif *vif;
-	struct wilc *wilc;
 
 	unsigned char mac_add[ETH_ALEN] = {0};
 	int ret = 0;
 	int i = 0;
-	struct wilc_priv *priv;
 	struct wilc *wl;
 
 	vif = netdev_priv(ndev);
 	wl = vif->wilc;
 
 	if (!wl || !wl->dev) {
-		netdev_err(ndev, "wilc1000: SPI device not ready\n");
+		netdev_err(ndev, "device not ready\n");
 		return -ENODEV;
 	}
 
-	vif = netdev_priv(ndev);
-	wilc = vif->wilc;
-	priv = wiphy_priv(vif->ndev->ieee80211_ptr->wiphy);
 	netdev_dbg(ndev, "MAC OPEN[%p]\n", ndev);
 
 	ret = wilc_init_host_int(ndev);
@@ -945,13 +896,13 @@ int wilc_mac_open(struct net_device *ndev)
 				wilc_set_wfi_drv_handler(vif,
 							 wilc_get_vif_idx(vif),
 							 0);
-			} else if (!wilc_wlan_get_num_conn_ifcs(wilc)) {
+			} else if (!wilc_wlan_get_num_conn_ifcs(wl)) {
 				wilc_set_wfi_drv_handler(vif,
 							 wilc_get_vif_idx(vif),
-							 wilc->open_ifcs);
+							 wl->open_ifcs);
 			} else {
-				if (memcmp(wilc->vif[i ^ 1]->bssid,
-					   wilc->vif[i ^ 1]->src_addr, 6))
+				if (memcmp(wl->vif[i ^ 1]->bssid,
+					   wl->vif[i ^ 1]->src_addr, 6))
 					wilc_set_wfi_drv_handler(vif,
 							 wilc_get_vif_idx(vif),
 							 0);
@@ -981,12 +932,12 @@ int wilc_mac_open(struct net_device *ndev)
 
 	wilc_mgmt_frame_register(vif->ndev->ieee80211_ptr->wiphy,
 				 vif->ndev->ieee80211_ptr,
-				 vif->g_struct_frame_reg[0].frame_type,
-				 vif->g_struct_frame_reg[0].reg);
+				 vif->frame_reg[0].type,
+				 vif->frame_reg[0].reg);
 	wilc_mgmt_frame_register(vif->ndev->ieee80211_ptr->wiphy,
 				 vif->ndev->ieee80211_ptr,
-				 vif->g_struct_frame_reg[1].frame_type,
-				 vif->g_struct_frame_reg[1].reg);
+				 vif->frame_reg[1].type,
+				 vif->frame_reg[1].reg);
 	netif_wake_queue(ndev);
 	wl->open_ifcs++;
 	vif->mac_opened = 1;
@@ -1003,14 +954,10 @@ static struct net_device_stats *mac_stats(struct net_device *dev)
 static void wilc_set_multicast_list(struct net_device *dev)
 {
 	struct netdev_hw_addr *ha;
-	struct wilc_priv *priv;
-	struct host_if_drv *hif_drv;
 	struct wilc_vif *vif;
 	int i = 0;
 
-	priv = wiphy_priv(dev->ieee80211_ptr->wiphy);
 	vif = netdev_priv(dev);
-	hif_drv = (struct host_if_drv *)priv->hif_drv;
 
 	if (dev->flags & IFF_PROMISC)
 		return;
@@ -1164,7 +1111,6 @@ static int mac_ioctl(struct net_device *ndev, struct ifreq *req, int cmd)
 	s8 rssi;
 	u32 size = 0, length = 0;
 	struct wilc_vif *vif;
-	struct wilc_priv *priv;
 	s32 ret = 0;
 	struct wilc *wilc;
 
@@ -1188,7 +1134,6 @@ static int mac_ioctl(struct net_device *ndev, struct ifreq *req, int cmd)
 				return PTR_ERR(buff);
 
 			if (strncasecmp(buff, "RSSI", length) == 0) {
-				priv = wiphy_priv(vif->ndev->ieee80211_ptr->wiphy);
 				ret = wilc_get_rssi(vif, &rssi);
 				netdev_info(ndev, "RSSI :%d\n", rssi);
 
@@ -1275,8 +1220,8 @@ void WILC_WFI_mgmt_rx(struct wilc *wilc, u8 *buff, u32 size)
 	}
 
 	vif = netdev_priv(wilc->vif[1]->ndev);
-	if ((buff[0] == vif->g_struct_frame_reg[0].frame_type && vif->g_struct_frame_reg[0].reg) ||
-	    (buff[0] == vif->g_struct_frame_reg[1].frame_type && vif->g_struct_frame_reg[1].reg))
+	if ((buff[0] == vif->frame_reg[0].type && vif->frame_reg[0].reg) ||
+	    (buff[0] == vif->frame_reg[1].type && vif->frame_reg[1].reg))
 		WILC_WFI_p2p_rx(wilc->vif[1]->ndev, buff, size);
 }
 
@@ -1292,8 +1237,10 @@ void wilc_netdev_cleanup(struct wilc *wilc)
 			vif[i] = netdev_priv(wilc->vif[i]->ndev);
 	}
 
-	if (wilc && wilc->firmware)
+	if (wilc && wilc->firmware) {
 		release_firmware(wilc->firmware);
+		wilc->firmware = NULL;
+	}
 
 	if (wilc && (wilc->vif[0]->ndev || wilc->vif[1]->ndev)) {
 		wilc_lock_timeout(wilc, &close_exit_sync, 5 * 1000);

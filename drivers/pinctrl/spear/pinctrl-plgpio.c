@@ -356,7 +356,7 @@ static struct irq_chip plgpio_irqchip = {
 	.irq_set_type	= plgpio_irq_set_type,
 };
 
-static void plgpio_irq_handler(unsigned irq, struct irq_desc *desc)
+static void plgpio_irq_handler(struct irq_desc *desc)
 {
 	struct gpio_chip *gc = irq_desc_get_handler_data(desc);
 	struct plgpio *plgpio = container_of(gc, struct plgpio, chip);
@@ -561,7 +561,7 @@ static int plgpio_probe(struct platform_device *pdev)
 	plgpio->chip.get = plgpio_get_value;
 	plgpio->chip.set = plgpio_set_value;
 	plgpio->chip.label = dev_name(&pdev->dev);
-	plgpio->chip.dev = &pdev->dev;
+	plgpio->chip.parent = &pdev->dev;
 	plgpio->chip.owner = THIS_MODULE;
 	plgpio->chip.of_node = pdev->dev.of_node;
 

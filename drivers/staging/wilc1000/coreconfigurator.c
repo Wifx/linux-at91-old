@@ -178,10 +178,8 @@ static inline void get_ssid(u8 *data, u8 *ssid, u8 *p_ssid_len)
 	u8 i   = 0;
 	u8 j   = 0;
 
-	len = data[MAC_HDR_LEN + TIME_STAMP_LEN + BEACON_INTERVAL_LEN +
-		   CAP_INFO_LEN + 1];
-	j   = MAC_HDR_LEN + TIME_STAMP_LEN + BEACON_INTERVAL_LEN +
-		CAP_INFO_LEN + 2;
+	len = data[TAG_PARAM_OFFSET + 1];
+	j   = TAG_PARAM_OFFSET + 2;
 
 	if (len >= MAX_SSID_LEN)
 		len = 0;
@@ -335,15 +333,15 @@ s32 wilc_parse_network_info(u8 *msg_buffer,
 		tim_elm = get_tim_elm(msa, rx_len + FCS_LEN, index);
 		if (tim_elm)
 			network_info->dtim_period = tim_elm[3];
-		ies = &msa[MAC_HDR_LEN + TIME_STAMP_LEN + BEACON_INTERVAL_LEN +
-			   CAP_INFO_LEN];
-		ies_len = rx_len - (MAC_HDR_LEN + TIME_STAMP_LEN +
-				    BEACON_INTERVAL_LEN + CAP_INFO_LEN);
+		ies = &msa[TAG_PARAM_OFFSET];
+		ies_len = rx_len - TAG_PARAM_OFFSET;
 
 		if (ies_len > 0) {
 			network_info->ies = kmemdup(ies, ies_len, GFP_KERNEL);
-			if (!network_info->ies)
+			if (!network_info->ies) {
+				kfree(network_info);
 				return -ENOMEM;
+			}
 		}
 		network_info->ies_len = ies_len;
 	}
@@ -377,8 +375,10 @@ s32 wilc_parse_assoc_resp_info(u8 *buffer, u32 buffer_len,
 					    AID_LEN);
 
 		connect_resp_info->ies = kmemdup(ies, ies_len, GFP_KERNEL);
-		if (!connect_resp_info->ies)
+		if (!connect_resp_info->ies) {
+			kfree(connect_resp_info);
 			return -ENOMEM;
+		}
 
 		connect_resp_info->ies_len = ies_len;
 	}

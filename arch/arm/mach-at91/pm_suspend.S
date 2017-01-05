@@ -151,11 +151,12 @@ ENTRY(at91_pm_suspend_in_sram)
 
 ulp0_mode:
 	bl	at91_pm_ulp0_mode
+	b	ulp_exit
 
 ulp_exit:
 	ldr	pmc, .pmc_base
 
-	/* Restore PLLA config */
+	/* Restore PLLA setting */
 	ldr	tmp1, .saved_pllar
 	str	tmp1, [pmc, #AT91_CKGR_PLLAR]
 
@@ -321,7 +322,7 @@ ENDPROC(at91_sramc_self_refresh)
 ENTRY(at91_pm_ulp0_mode)
 	ldr	pmc, .pmc_base
 
-	/* Turn off the main oscillator */
+	/* Turn off the crystal oscillator */
 	ldr	tmp1, [pmc, #AT91_CKGR_MOR]
 	bic	tmp1, tmp1, #AT91_PMC_MOSCEN
 	orr	tmp1, tmp1, #AT91_PMC_KEY
@@ -330,7 +331,7 @@ ENTRY(at91_pm_ulp0_mode)
 	/* Wait for interrupt */
 	at91_cpu_idle
 
-	/* Turn on the main oscillator */
+	/* Turn on the crystal oscillator */
 	ldr	tmp1, [pmc, #AT91_CKGR_MOR]
 	orr	tmp1, tmp1, #AT91_PMC_MOSCEN
 	orr	tmp1, tmp1, #AT91_PMC_KEY
@@ -341,13 +342,15 @@ ENTRY(at91_pm_ulp0_mode)
 	mov	pc, lr
 ENDPROC(at91_pm_ulp0_mode)
 
-/*
+/**
  * void at91_pm_ulp1_mode(void)
+ * Note: This procedure only applies on the platform which uses
+ * the external crystal oscillator as a main clock source.
  */
 ENTRY(at91_pm_ulp1_mode)
 	ldr	pmc, .pmc_base
 
-	/* Switch main clock source to 12-MHz RC oscillator */
+	/* Switch the main clock source to 12-MHz RC oscillator */
 	ldr	tmp1, [pmc, #AT91_CKGR_MOR]
 	bic	tmp1, tmp1, #AT91_PMC_MOSCSEL
 	bic	tmp1, tmp1, #AT91_PMC_KEY_MASK
@@ -371,7 +374,7 @@ ENTRY(at91_pm_ulp1_mode)
 
 	wait_mckrdy
 
-	/* Enter the ULP1 mode by setting WAITMODE bit in CKGR_MOR */
+	/* Enter the ULP1 mode by set WAITMODE bit in CKGR_MOR */
 	ldr	tmp1, [pmc, #AT91_CKGR_MOR]
 	orr	tmp1, tmp1, #AT91_PMC_WAITMODE
 	bic	tmp1, tmp1, #AT91_PMC_KEY_MASK

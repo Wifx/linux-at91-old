@@ -189,7 +189,7 @@ int __max730x_probe(struct max7301 *ts)
 
 	ts->chip.ngpio = PIN_NUMBER;
 	ts->chip.can_sleep = true;
-	ts->chip.dev = dev;
+	ts->chip.parent = dev;
 	ts->chip.owner = THIS_MODULE;
 
 	/*
@@ -236,7 +236,6 @@ int __max730x_remove(struct device *dev)
 	ts->write(dev, 0x04, 0x00);
 	gpiochip_remove(&ts->chip);
 	mutex_destroy(&ts->lock);
-	kfree(ts);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(__max730x_remove);

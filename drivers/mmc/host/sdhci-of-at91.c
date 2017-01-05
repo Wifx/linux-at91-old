@@ -29,41 +29,19 @@
 
 #include "sdhci-pltfm.h"
 
+#define SDMMC_MC1R	0x204
+#define		SDMMC_MC1R_FCD		BIT(7)
 #define SDMMC_CACR	0x230
 #define		SDMMC_CACR_CAPWREN	BIT(0)
 #define		SDMMC_CACR_KEY		(0x46 << 8)
+
+#define SDHCI_AT91_PRESET_COMMON_CONF	0x400 /* drv type B, programmable clock mode */
 
 struct sdhci_at91_priv {
 	struct clk *hclock;
 	struct clk *gck;
 	struct clk *mainck;
 };
-
-static void sdhci_at91_disable_clocks(struct sdhci_at91_priv *priv)
-{
-	clk_disable_unprepare(priv->hclock);
-	clk_disable_unprepare(priv->gck);
-	clk_disable_unprepare(priv->mainck);
-}
-
-static int __maybe_unused sdhci_at91_enable_clocks(struct sdhci_at91_priv *priv)
-{
-	int ret;
-
-	ret = clk_prepare_enable(priv->mainck);
-	if (ret)
-		return ret;
-
-	ret = clk_prepare_enable(priv->gck);
-	if (ret)
-		return ret;
-
-	ret = clk_prepare_enable(priv->hclock);
-	if (ret)
-		return ret;
-
-	return ret;
-}
 
 static void sdhci_at91_set_clock(struct sdhci_host *host, unsigned int clock)
 {
@@ -109,10 +87,22 @@ static void sdhci_at91_set_clock(struct sdhci_host *host, unsigned int clock)
 	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
 }
 
+static void sdhci_at91_reset(struct sdhci_host *host, u8 mask)
+{
+	sdhci_reset(host, mask);
+
+	if (host->mmc->caps & MMC_CAP_NONREMOVABLE) {
+		u8 mc1r;
+		mc1r = readb(host->ioaddr + SDMMC_MC1R);
+		mc1r |= SDMMC_MC1R_FCD;
+		writeb(mc1r, host->ioaddr + SDMMC_MC1R);
+	}
+}
+
 static const struct sdhci_ops sdhci_at91_sama5d2_ops = {
 	.set_clock		= sdhci_at91_set_clock,
 	.set_bus_width		= sdhci_set_bus_width,
-	.reset			= sdhci_reset,
+	.reset			= sdhci_at91_reset,
 	.set_uhs_signaling	= sdhci_set_uhs_signaling,
 };
 
@@ -130,12 +120,14 @@ static int sdhci_at91_runtime_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct sdhci_at91_priv *priv = pltfm_host->priv;
+	struct sdhci_at91_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	int ret;
 
 	ret = sdhci_runtime_suspend_host(host);
 
-	sdhci_at91_disable_clocks(priv);
+	clk_disable_unprepare(priv->gck);
+	clk_disable_unprepare(priv->hclock);
+	clk_disable_unprepare(priv->mainck);
 
 	return ret;
 }
@@ -144,12 +136,24 @@ static int sdhci_at91_runtime_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct sdhci_at91_priv *priv = pltfm_host->priv;
+	struct sdhci_at91_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	int ret;
 
-	ret = sdhci_at91_enable_clocks(priv);
+	ret = clk_prepare_enable(priv->mainck);
 	if (ret) {
-		dev_err(dev, "can't enable clocks\n");
+		dev_err(dev, "can't enable mainck\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(priv->hclock);
+	if (ret) {
+		dev_err(dev, "can't enable hclock\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(priv->gck);
+	if (ret) {
+		dev_err(dev, "can't enable gck\n");
 		return ret;
 	}
 
@@ -176,18 +180,19 @@ static int sdhci_at91_probe(struct platform_device *pdev)
 	unsigned int			clk_base, clk_mul;
 	unsigned int			gck_rate, real_gck_rate;
 	int				ret;
-	unsigned int 			preset_div, preset_common = 0x400; /* drv type B, programmable clock mode */
+	unsigned int			preset_div;
 
 	match = of_match_device(sdhci_at91_dt_match, &pdev->dev);
 	if (!match)
 		return -EINVAL;
 	soc_data = match->data;
 
-	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
-	if (!priv) {
-		dev_err(&pdev->dev, "unable to allocate private data\n");
-		return -ENOMEM;
-	}
+	host = sdhci_pltfm_init(pdev, soc_data, sizeof(*priv));
+	if (IS_ERR(host))
+		return PTR_ERR(host);
+
+	pltfm_host = sdhci_priv(host);
+	priv = sdhci_pltfm_priv(pltfm_host);
 
 	priv->mainck = devm_clk_get(&pdev->dev, "baseclk");
 	if (IS_ERR(priv->mainck)) {
@@ -206,10 +211,6 @@ static int sdhci_at91_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to get multclk\n");
 		return PTR_ERR(priv->gck);
 	}
-
-	host = sdhci_pltfm_init(pdev, soc_data, 0);
-	if (IS_ERR(host))
-		return PTR_ERR(host);
 
 	/*
 	 * The mult clock is provided by as a generated clock by the PMC
@@ -254,26 +255,23 @@ static int sdhci_at91_probe(struct platform_device *pdev)
 	 * reason, we need to use presets to support SDR104.
 	 */
 	preset_div = DIV_ROUND_UP(real_gck_rate, 24000000) - 1;
-	writew(preset_common | preset_div,
+	writew(SDHCI_AT91_PRESET_COMMON_CONF | preset_div,
 	       host->ioaddr + SDHCI_PRESET_FOR_SDR12);
 	preset_div = DIV_ROUND_UP(real_gck_rate, 50000000) - 1;
-	writew(preset_common | preset_div,
+	writew(SDHCI_AT91_PRESET_COMMON_CONF | preset_div,
 	       host->ioaddr + SDHCI_PRESET_FOR_SDR25);
 	preset_div = DIV_ROUND_UP(real_gck_rate, 100000000) - 1;
-	writew(preset_common | preset_div,
+	writew(SDHCI_AT91_PRESET_COMMON_CONF | preset_div,
 	       host->ioaddr + SDHCI_PRESET_FOR_SDR50);
 	preset_div = DIV_ROUND_UP(real_gck_rate, 120000000) - 1;
-	writew(preset_common | preset_div,
+	writew(SDHCI_AT91_PRESET_COMMON_CONF | preset_div,
 	       host->ioaddr + SDHCI_PRESET_FOR_SDR104);
 	preset_div = DIV_ROUND_UP(real_gck_rate, 50000000) - 1;
-	writew(preset_common | preset_div,
+	writew(SDHCI_AT91_PRESET_COMMON_CONF | preset_div,
 	       host->ioaddr + SDHCI_PRESET_FOR_DDR50);
 
 	clk_prepare_enable(priv->mainck);
 	clk_prepare_enable(priv->gck);
-
-	pltfm_host = sdhci_priv(host);
-	pltfm_host->priv = priv;
 
 	ret = mmc_of_parse(host->mmc);
 	if (ret)
@@ -310,6 +308,26 @@ static int sdhci_at91_probe(struct platform_device *pdev)
 		host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 	}
 
+	/*
+	 * If the device attached to the MMC bus is not removable, it is safer
+	 * to set the Force Card Detect bit. People often don't connect the
+	 * card detect signal and use this pin for another purpose. If the card
+	 * detect pin is not muxed to SDHCI controller, a default value is
+	 * used. This value can be different from a SoC revision to another
+	 * one. Problems come when this default value is not card present. To
+	 * avoid this case, if the device is non removable then the card
+	 * detection procedure using the SDMCC_CD signal is bypassed.
+	 * This bit is resetted when a software reset for all command is
+	 * performed so we need to implement our own reset function to set back
+	 * this bit.
+	 */
+	if (host->mmc->caps & MMC_CAP_NONREMOVABLE) {
+		u8 mc1r;
+		mc1r = readb(host->ioaddr + SDMMC_MC1R);
+		mc1r |= SDMMC_MC1R_FCD;
+		writeb(mc1r, host->ioaddr + SDMMC_MC1R);
+	}
+
 	pm_runtime_put_autosuspend(&pdev->dev);
 
 	return 0;
@@ -331,7 +349,10 @@ static int sdhci_at91_remove(struct platform_device *pdev)
 {
 	struct sdhci_host	*host = platform_get_drvdata(pdev);
 	struct sdhci_pltfm_host	*pltfm_host = sdhci_priv(host);
-	struct sdhci_at91_priv	*priv = pltfm_host->priv;
+	struct sdhci_at91_priv	*priv = sdhci_pltfm_priv(pltfm_host);
+	struct clk *gck = priv->gck;
+	struct clk *hclock = priv->hclock;
+	struct clk *mainck = priv->mainck;
 
 	pm_runtime_get_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
@@ -339,7 +360,9 @@ static int sdhci_at91_remove(struct platform_device *pdev)
 
 	sdhci_pltfm_unregister(pdev);
 
-	sdhci_at91_disable_clocks(priv);
+	clk_disable_unprepare(gck);
+	clk_disable_unprepare(hclock);
+	clk_disable_unprepare(mainck);
 
 	return 0;
 }

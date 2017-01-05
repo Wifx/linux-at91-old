@@ -8,6 +8,9 @@
  * (at your option) any later version.
  *
  */
+#define DEBUG 12
+
+#include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
 #include <linux/clk/at91_pmc.h>
@@ -90,7 +93,7 @@ static int clk_audio_pll_compute_qdpmc(unsigned long q_rate, unsigned long rate,
 static long clk_audio_pll_pmc_round_rate(struct clk_hw *hw, unsigned long rate,
 					 unsigned long *parent_rate)
 {
-	struct clk *pclk = __clk_get_parent(hw->clk);
+	struct clk *pclk = clk_get_parent(hw->clk);
 	long best_rate = -EINVAL;
 	unsigned long best_parent_rate = 0;
 	unsigned long tmp_qd;
@@ -101,7 +104,7 @@ static long clk_audio_pll_pmc_round_rate(struct clk_hw *hw, unsigned long rate,
 	if (clk_audio_pll_compute_qdpmc(AUDIO_PLL_REFERENCE_FOUT, rate, &tmp_qd))
 		return -EINVAL;
 
-	best_parent_rate = __clk_round_rate(pclk, rate * tmp_qd);
+	best_parent_rate = clk_round_rate(pclk, rate * tmp_qd);
 	best_rate = best_parent_rate / tmp_qd;
 
 	pr_debug("A PLL/PMC: %s, best_rate = %ld, best_parent_rate = %lu (qd = %lu)\n",

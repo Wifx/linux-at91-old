@@ -50,8 +50,9 @@ static int regmap_atmel_hlcdc_reg_write(void *context, unsigned int reg,
 	if (reg <= ATMEL_HLCDC_DIS) {
 		u32 status;
 
-		readl_poll_timeout(hregmap->regs + ATMEL_HLCDC_SR, status,
-				   !(status & ATMEL_HLCDC_SIP), 1, 100);
+		readl_poll_timeout_atomic(hregmap->regs + ATMEL_HLCDC_SR,
+					  status, !(status & ATMEL_HLCDC_SIP),
+					  1, 100);
 	}
 
 	writel(val, hregmap->regs + reg);
@@ -148,6 +149,7 @@ static const struct of_device_id atmel_hlcdc_match[] = {
 	{ .compatible = "atmel,sama5d4-hlcdc" },
 	{ /* sentinel */ },
 };
+MODULE_DEVICE_TABLE(of, atmel_hlcdc_match);
 
 static struct platform_driver atmel_hlcdc_driver = {
 	.probe = atmel_hlcdc_probe,

@@ -29,7 +29,7 @@
 #define AT91_CIDR_EXT			BIT(31)
 #define AT91_CIDR_MATCH_MASK		0x7fffffe0
 
-int __init at91_get_cidr_exid_from_dbgu(u32 *cidr, u32 *exid)
+static int __init at91_get_cidr_exid_from_dbgu(u32 *cidr, u32 *exid)
 {
 	struct device_node *np;
 	void __iomem *regs;
@@ -57,7 +57,7 @@ int __init at91_get_cidr_exid_from_dbgu(u32 *cidr, u32 *exid)
 	return 0;
 }
 
-int __init at91_get_cidr_exid_from_chipid(u32 *cidr, u32 *exid)
+static int __init at91_get_cidr_exid_from_chipid(u32 *cidr, u32 *exid)
 {
 	struct device_node *np;
 	void __iomem *regs;

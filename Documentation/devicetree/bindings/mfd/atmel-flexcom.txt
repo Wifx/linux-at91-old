@@ -13,24 +13,20 @@ Required properties:
 - #size-cells:		Should be <1>
 - ranges:		Should be one range for the full I/O register region
 			(including USART, TWI and SPI registers).
-- atmel,flexcom-mode:	Should be one of the 3 following macros as defined in
-			include/dt-bindings/mfd/atmel-flexcom.h:
-			- ATMEL_FLEXCOM_MODE_USART for USART
-			- ATMEL_FLEXCOM_MODE_SPI for SPI
-			- ATMEL_FLEXCOM_MODE_TWI for I2C
+- atmel,flexcom-mode:	Should be one of the following values:
+			- <1> for USART
+			- <2> for SPI
+			- <3> for I2C
 
 Required child:
-a single child device of type matching the "atmel,flexcom-mode" property.
-
-The reg property of this child should be:
-- <0x200 0x200> for USART
-- <0x400 0x200> for SPI
-- <0x600 0x200> for I2C
+A single available child device of type matching the "atmel,flexcom-mode"
+property.
 
 The phandle provided by the clocks property of the child is the same as one for
 the Flexcom parent.
 
-Other properties remain unchanged. See documentation of the respective device:
+For other properties, please refer to the documentations of the respective
+device:
 - ../serial/atmel-usart.txt
 - ../spi/spi_atmel.txt
 - ../i2c/i2c-at91.txt
@@ -44,7 +40,7 @@ flexcom@f8034000 {
 	#address-cells = <1>;
 	#size-cells = <1>;
 	ranges = <0x0 0xf8034000 0x800>;
-	atmel,flexcom-mode = <ATMEL_FLEXCOM_MODE_SPI>;
+	atmel,flexcom-mode = <2>;
 
 	spi@400 {
 		compatible = "atmel,at91rm9200-spi";

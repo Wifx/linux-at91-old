@@ -28,21 +28,6 @@
 void __iomem *at91_pmc_base;
 EXPORT_SYMBOL_GPL(at91_pmc_base);
 
-void at91rm9200_idle(void)
-{
-	/*
-	 * Disable the processor clock.  The processor will be automatically
-	 * re-enabled by an interrupt or by a reset.
-	 */
-	at91_pmc_write(AT91_PMC_SCDR, AT91_PMC_PCK);
-}
-
-void at91sam9_idle(void)
-{
-	at91_pmc_write(AT91_PMC_SCDR, AT91_PMC_PCK);
-	cpu_do_idle();
-}
-
 int of_at91_get_clk_range(struct device_node *np, const char *propname,
 			  struct clk_range *range)
 {
@@ -126,7 +111,6 @@ static int pmc_irq_map(struct irq_domain *h, unsigned int virq,
 
 	irq_set_chip_and_handler(virq, &pmc_irq,
 				 handle_level_irq);
-	set_irq_flags(virq, IRQF_VALID);
 	irq_set_chip_data(virq, pmc);
 
 	return 0;

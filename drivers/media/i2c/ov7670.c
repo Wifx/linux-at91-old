@@ -639,7 +639,7 @@ static struct ov7670_format_struct {
 } ov7670_formats[] = {
 	{
 		.mbus_code	= MEDIA_BUS_FMT_YUYV8_2X8,
-		.colorspace	= V4L2_COLORSPACE_JPEG,
+		.colorspace	= V4L2_COLORSPACE_SRGB,
 		.regs 		= ov7670_fmt_yuv422,
 		.cmatrix	= { 128, -128, 0, -34, -94, 128 },
 	},
@@ -1080,9 +1080,32 @@ static int ov7670_enum_frame_interval(struct v4l2_subdev *sd,
 				      struct v4l2_subdev_pad_config *cfg,
 				      struct v4l2_subdev_frame_interval_enum *fie)
 {
+	struct ov7670_info *info = to_state(sd);
+	unsigned int n_win_sizes = info->devtype->n_win_sizes;
+	int i;
+
 	if (fie->pad)
 		return -EINVAL;
 	if (fie->index >= ARRAY_SIZE(ov7670_frame_rates))
+		return -EINVAL;
+
+	/*
+	 * Check if the width/height is valid.
+	 *
+	 * If a minimum width/height was requested, filter out the capture
+	 * windows that fall outside that.
+	 */
+	for (i = 0; i < n_win_sizes; i++) {
+		struct ov7670_win_size *win = &info->devtype->win_sizes[i];
+
+		if (info->min_width && win->width < info->min_width)
+			continue;
+		if (info->min_height && win->height < info->min_height)
+			continue;
+		if (fie->width == win->width && fie->height == win->height)
+			break;
+	}
+	if (i == n_win_sizes)
 		return -EINVAL;
 	fie->interval.numerator = 1;
 	fie->interval.denominator = ov7670_frame_rates[fie->index];
@@ -1369,7 +1392,7 @@ static int ov7670_s_exp(struct v4l2_subdev *sd, int value)
 	unsigned char com1, com8, aech, aechh;
 
 	ret = ov7670_read(sd, REG_COM1, &com1) +
-		ov7670_read(sd, REG_COM8, &com8);
+		ov7670_read(sd, REG_COM8, &com8) +
 		ov7670_read(sd, REG_AECHH, &aechh);
 	if (ret)
 		return ret;
@@ -1651,7 +1674,6 @@ MODULE_DEVICE_TABLE(i2c, ov7670_id);
 
 static struct i2c_driver ov7670_driver = {
 	.driver = {
-		.owner	= THIS_MODULE,
 		.name	= "ov7670",
 	},
 	.probe		= ov7670_probe,

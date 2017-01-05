@@ -172,7 +172,7 @@ static struct f7188x_gpio_bank f71869a_gpio_bank[] = {
 };
 
 static struct f7188x_gpio_bank f71882_gpio_bank[] = {
-	F7188X_GPIO_BANK(0 , 8, 0xF0),
+	F7188X_GPIO_BANK(0, 8, 0xF0),
 	F7188X_GPIO_BANK(10, 8, 0xE0),
 	F7188X_GPIO_BANK(20, 8, 0xD0),
 	F7188X_GPIO_BANK(30, 4, 0xC0),
@@ -180,7 +180,7 @@ static struct f7188x_gpio_bank f71882_gpio_bank[] = {
 };
 
 static struct f7188x_gpio_bank f71889_gpio_bank[] = {
-	F7188X_GPIO_BANK(0 , 7, 0xF0),
+	F7188X_GPIO_BANK(0, 7, 0xF0),
 	F7188X_GPIO_BANK(10, 7, 0xE0),
 	F7188X_GPIO_BANK(20, 8, 0xD0),
 	F7188X_GPIO_BANK(30, 8, 0xC0),
@@ -333,7 +333,7 @@ static int f7188x_gpio_probe(struct platform_device *pdev)
 	for (i = 0; i < data->nr_bank; i++) {
 		struct f7188x_gpio_bank *bank = &data->bank[i];
 
-		bank->chip.dev = &pdev->dev;
+		bank->chip.parent = &pdev->dev;
 		bank->data = data;
 
 		err = gpiochip_add(&bank->chip);

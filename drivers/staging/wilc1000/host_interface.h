@@ -96,7 +96,7 @@ enum CURRENT_TXRATE {
 	MBPS_54		= 54
 };
 
-struct cfg_param_val {
+struct cfg_param_attr {
 	u32 flag;
 	u8 ht_enable;
 	u8 bss_type;
@@ -172,9 +172,9 @@ typedef void (*wilc_scan_result)(enum scan_event, struct network_info *,
 				 void *, void *);
 
 typedef void (*wilc_connect_result)(enum conn_event,
-				     tstrConnectInfo *,
+				     struct connect_info *,
 				     u8,
-				     tstrDisconnectNotifInfo *,
+				     struct disconnect_info *,
 				     void *);
 
 typedef void (*wilc_remain_on_chan_expired)(void *, u32);
@@ -224,10 +224,6 @@ struct op_mode {
 	u32 mode;
 };
 
-struct set_mac_addr {
-	u8 mac_addr[ETH_ALEN];
-};
-
 struct get_mac_addr {
 	u8 *mac_addr;
 };
@@ -272,13 +268,13 @@ struct host_if_drv {
 	enum host_if_state hif_state;
 
 	u8 assoc_bssid[ETH_ALEN];
-	struct cfg_param_val cfg_values;
+	struct cfg_param_attr cfg_values;
 
-	struct semaphore sem_cfg_values;
-	struct semaphore sem_test_key_block;
-	struct semaphore sem_test_disconn_block;
-	struct semaphore sem_get_rssi;
-	struct semaphore sem_inactive_time;
+	struct mutex cfg_values_lock;
+	struct completion comp_test_key_block;
+	struct completion comp_test_disconn_block;
+	struct completion comp_get_rssi;
+	struct completion comp_inactive_time;
 
 	struct timer_list scan_timer;
 	struct timer_list connect_timer;
@@ -336,7 +332,7 @@ int wilc_scan(struct wilc_vif *vif, u8 scan_source, u8 scan_type,
 	      size_t ies_len, wilc_scan_result scan_result, void *user_arg,
 	      struct hidden_network *hidden_network);
 int wilc_hif_set_cfg(struct wilc_vif *vif,
-		     struct cfg_param_val *cfg_param);
+		     struct cfg_param_attr *cfg_param);
 int wilc_init(struct net_device *dev, struct host_if_drv **hif_drv_handler);
 int wilc_deinit(struct wilc_vif *vif);
 int wilc_add_beacon(struct wilc_vif *vif, u32 interval, u32 dtim_period,

@@ -19,6 +19,7 @@
 #include <linux/bitmap.h>
 #include <linux/types.h>
 #include <linux/irq.h>
+#include <linux/irqchip.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
@@ -31,7 +32,6 @@
 #include <asm/mach/irq.h>
 
 #include "irq-atmel-aic-common.h"
-#include "irqchip.h"
 
 /* Number of irq lines managed by AIC */
 #define NR_AIC5_IRQS	128
@@ -258,6 +258,7 @@ static int aic5_irq_domain_xlate(struct irq_domain *d,
 				 unsigned int *out_type)
 {
 	struct irq_chip_generic *bgc = irq_get_domain_generic_chip(d, 0);
+	unsigned long flags;
 	unsigned smr;
 	int ret;
 
@@ -269,13 +270,13 @@ static int aic5_irq_domain_xlate(struct irq_domain *d,
 	if (ret)
 		return ret;
 
-	irq_gc_lock(bgc);
+	irq_gc_lock_irqsave(bgc, flags);
 	irq_reg_writel(bgc, *out_hwirq, AT91_AIC5_SSR);
 	smr = irq_reg_readl(bgc, AT91_AIC5_SMR);
 	ret = aic_common_set_priority(intspec[2], &smr);
 	if (!ret)
 		irq_reg_writel(bgc, intspec[2] | smr, AT91_AIC5_SMR);
-	irq_gc_unlock(bgc);
+	irq_gc_unlock_irqrestore(bgc, flags);
 
 	return ret;
 }

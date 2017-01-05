@@ -66,7 +66,6 @@ module_param(on_flash_bbt, int, 0);
 struct atmel_nand_caps {
 	bool pmecc_correct_erase_page;
 	uint8_t pmecc_max_correction;
-	bool has_hsmc_clk;
 };
 
 /* oob layout for large page size
@@ -957,7 +956,8 @@ static int atmel_nand_pmecc_read_page(struct mtd_info *mtd,
 }
 
 static int atmel_nand_pmecc_write_page(struct mtd_info *mtd,
-		struct nand_chip *chip, const uint8_t *buf, int oob_required)
+		struct nand_chip *chip, const uint8_t *buf, int oob_required,
+		int page)
 {
 	struct atmel_nand_host *host = chip->priv;
 	uint32_t *eccpos = chip->ecc.layout->eccpos;
@@ -2024,7 +2024,8 @@ static int nfc_sram_write_page(struct mtd_info *mtd, struct nand_chip *chip,
 
 	if (likely(!raw))
 		/* Need to write ecc into oob */
-		status = chip->ecc.write_page(mtd, chip, buf, oob_required);
+		status = chip->ecc.write_page(mtd, chip, buf, oob_required,
+					      page);
 
 	if (status < 0)
 		return status;
@@ -2145,7 +2146,7 @@ static int atmel_nand_probe(struct platform_device *pdev)
 
 	nand_chip->priv = host;		/* link the private data structures */
 	mtd->priv = nand_chip;
-	mtd->owner = THIS_MODULE;
+	mtd->dev.parent = &pdev->dev;
 
 	/* Set address of NAND IO lines */
 	nand_chip->IO_ADDR_R = host->io_base;
@@ -2345,19 +2346,11 @@ static int atmel_nand_remove(struct platform_device *pdev)
 static struct atmel_nand_caps at91rm9200_caps = {
 	.pmecc_correct_erase_page = false,
 	.pmecc_max_correction = 24,
-	.has_hsmc_clk = false,
-};
-
-static struct atmel_nand_caps sama5d3_caps = {
-	.pmecc_correct_erase_page = false,
-	.pmecc_max_correction = 24,
-	.has_hsmc_clk = true,
 };
 
 static struct atmel_nand_caps sama5d4_caps = {
 	.pmecc_correct_erase_page = true,
 	.pmecc_max_correction = 24,
-	.has_hsmc_clk = true,
 };
 
 /*
@@ -2367,13 +2360,11 @@ static struct atmel_nand_caps sama5d4_caps = {
 static const struct atmel_nand_caps sama5d2_caps = {
 	.pmecc_correct_erase_page = true,
 	.pmecc_max_correction = 32,
-	.has_hsmc_clk = true,
 };
 
 static const struct of_device_id atmel_nand_dt_ids[] = {
 	{ .compatible = "atmel,at91rm9200-nand", .data = &at91rm9200_caps },
 	{ .compatible = "atmel,sama5d4-nand", .data = &sama5d4_caps },
-	{ .compatible = "atmel,sama5d3-nand", .data = &sama5d3_caps },
 	{ .compatible = "atmel,sama5d2-nand", .data = &sama5d2_caps },
 	{ /* sentinel */ }
 };
