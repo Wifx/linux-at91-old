@@ -24,6 +24,11 @@
 #define SHA_MR_ALGO_SHA384		(2 << 8)
 #define SHA_MR_ALGO_SHA512		(3 << 8)
 #define SHA_MR_ALGO_SHA224		(4 << 8)
+#define SHA_MR_ALGO_HMAC_SHA1		(8 << 8)
+#define SHA_MR_ALGO_HMAC_SHA256		(9 << 8)
+#define SHA_MR_ALGO_HMAC_SHA384		(10 << 8)
+#define SHA_MR_ALGO_HMAC_SHA512		(11 << 8)
+#define SHA_MR_ALGO_HMAC_SHA224		(12 << 8)
 #define	SHA_MR_DUALBUFF			(1 << 16)
 
 #define SHA_IER				0x10
@@ -34,11 +39,18 @@
 #define SHA_INT_ENDTX			(1 << 1)
 #define SHA_INT_TXBUFE			(1 << 2)
 #define SHA_INT_URAD			(1 << 8)
+#define SHA_INT_CHECKF			(1 << 16)
 #define SHA_ISR_URAT_MASK		(0x7 << 12)
 #define SHA_ISR_URAT_IDR		(0x0 << 12)
 #define SHA_ISR_URAT_ODR		(0x1 << 12)
 #define SHA_ISR_URAT_MR			(0x2 << 12)
 #define SHA_ISR_URAT_WO			(0x5 << 12)
+#define SHA_ISR_CHKST_OFFSET		(20)
+#define SHA_ISR_CHKST_MASK		(0xf << 20)
+#define SHA_ISR_CHKST			(0x5 << 20)
+
+#define SHA_MSGSIZE			0x20
+#define SHA_BYTESCNT			0x30
 
 #define	SHA_HW_VERSION		0xFC
 

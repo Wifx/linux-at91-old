@@ -824,6 +824,7 @@ static void atmel_hlcdc_plane_atomic_update(struct drm_plane *p,
 	atmel_hlcdc_plane_update_disc_area(plane, state);
 
 	atmel_hlcdc_layer_update_commit(&plane->layer);
+	plane->prepared = false;
 }
 
 static void atmel_hlcdc_plane_atomic_disable(struct drm_plane *p,

@@ -138,6 +138,17 @@ static void at91_stop_hc(struct platform_device *pdev)
 
 /*-------------------------------------------------------------------------*/
 
+struct regmap *at91_dt_syscon_sfr(void)
+{
+	struct regmap *regmap;
+
+	regmap = syscon_regmap_lookup_by_compatible("atmel,sama5d2-sfr");
+	if (IS_ERR(regmap))
+		return NULL;
+
+	return regmap;
+}
+
 static void usb_hcd_at91_remove (struct usb_hcd *, struct platform_device *);
 
 struct regmap *at91_dt_syscon_sfr(void)
@@ -689,6 +700,8 @@ ohci_hcd_at91_drv_suspend(struct device *dev)
 	if (!ohci_at91->wakeup) {
 		ohci->rh_state = OHCI_RH_HALTED;
 
+		ohci_at91_port_suspend(ohci_at91->sfr_regmap);
+
 		/* flush the writes */
 		(void) ohci_readl (ohci, &ohci->regs->control);
 		at91_stop_clock(ohci_at91);
@@ -706,6 +719,8 @@ static int ohci_hcd_at91_drv_resume(struct device *dev)
 		disable_irq_wake(hcd->irq);
 
 	at91_start_clock(ohci_at91);
+
+	ohci_at91_port_resume(ohci_at91->sfr_regmap);
 
 	ohci_resume(hcd, false);
 

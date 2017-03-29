@@ -52,9 +52,25 @@ dtb-$(CONFIG_SOC_SAM_V7) += \
 	at91-sama5d3_xplained_pda7.dtb \
 	at91-sama5d3_xplained_pda7b.dtb \
 	sama5d31ek.dtb \
+	sama5d31ek_pda4.dtb \
+	sama5d31ek_pda7.dtb \
+	sama5d31ek_revc.dtb \
+	sama5d31ek_revc_pda4.dtb \
+	sama5d31ek_revc_pda7.dtb \
 	sama5d33ek.dtb \
+	sama5d33ek_pda4.dtb \
+	sama5d33ek_pda7.dtb \
+	sama5d33ek_revc.dtb \
+	sama5d33ek_revc_pda4.dtb \
+	sama5d33ek_revc_pda7.dtb \
 	sama5d34ek.dtb \
+	sama5d34ek_pda4.dtb \
+	sama5d34ek_pda7.dtb \
+	sama5d34ek_revc.dtb \
+	sama5d34ek_revc_pda4.dtb \
+	sama5d34ek_revc_pda7.dtb \
 	sama5d35ek.dtb \
+	sama5d35ek_revc.dtb \
 	sama5d36ek.dtb \
 	sama5d36ek_cmp.dtb \
 	at91-sama5d4_ma5d4evk.dtb \

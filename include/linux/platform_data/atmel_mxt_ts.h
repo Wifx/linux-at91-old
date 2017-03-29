@@ -16,6 +16,11 @@
 #include <linux/types.h>
 #include <dt-bindings/input/atmel_mxt_ts.h>
 
+enum mxt_suspend_mode {
+	MXT_SUSPEND_DEEP_SLEEP	= 0,
+	MXT_SUSPEND_T9_CTRL	= 1,
+};
+
 /* The platform data for the Atmel maXTouch touchscreen driver */
 struct mxt_platform_data {
 	unsigned long irqflags;

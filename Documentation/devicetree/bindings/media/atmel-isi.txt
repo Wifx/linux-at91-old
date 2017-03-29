@@ -2,7 +2,7 @@ Atmel Image Sensor Interface (ISI) SoC Camera Subsystem
 ----------------------------------------------
 
 Required properties:
-- compatible: must be "atmel,at91sam9g45-isi"
+- compatible: should be "atmel,at91sam9g45-isi" or "atmel,sama5d2-isc";
 - reg: physical base address and length of the registers set for the device;
 - interrupts: should contain IRQ line for the ISI;
 - clocks: list of clock specifiers, corresponding to entries in

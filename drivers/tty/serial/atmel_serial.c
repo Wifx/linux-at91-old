@@ -1785,6 +1785,7 @@ static void atmel_get_ip_name(struct uart_port *port)
 		default:
 			dev_err(port->dev, "Not supported ip name nor version, set to uart\n");
 		}
+		break;
 	}
 }
 
@@ -2734,6 +2735,48 @@ static void atmel_serial_probe_fifos(struct atmel_uart_port *atmel_port,
 		atmel_port->rts_high);
 	dev_dbg(&pdev->dev, "RTS Low Threshold  : %2u data\n",
 		atmel_port->rts_low);
+}
+
+static void atmel_serial_probe_fifos(struct atmel_uart_port *port,
+				     struct platform_device *pdev)
+{
+	port->fifo_size = 0;
+	port->rts_low = 0;
+	port->rts_high = 0;
+
+	if (of_property_read_u32(pdev->dev.of_node,
+				 "atmel,fifo-size",
+				 &port->fifo_size))
+		return;
+
+	if (!port->fifo_size)
+		return;
+
+	if (port->fifo_size < ATMEL_MIN_FIFO_SIZE) {
+		port->fifo_size = 0;
+		dev_err(&pdev->dev, "Invalid FIFO size\n");
+		return;
+	}
+
+	/*
+	 * 0 <= rts_low <= rts_high <= fifo_size
+	 * Once their CTS line asserted by the remote peer, some x86 UARTs tend
+	 * to flush their internal TX FIFO, commonly up to 16 data, before
+	 * actually stopping to send new data. So we try to set the RTS High
+	 * Threshold to a reasonably high value respecting this 16 data
+	 * empirical rule when possible.
+	 */
+	port->rts_high = max_t(int, port->fifo_size >> 1,
+			       port->fifo_size - ATMEL_RTS_HIGH_OFFSET);
+	port->rts_low  = max_t(int, port->fifo_size >> 2,
+			       port->fifo_size - ATMEL_RTS_LOW_OFFSET);
+
+	dev_info(&pdev->dev, "Using FIFO (%u data)\n",
+		 port->fifo_size);
+	dev_dbg(&pdev->dev, "RTS High Threshold : %2u data\n",
+		port->rts_high);
+	dev_dbg(&pdev->dev, "RTS Low Threshold  : %2u data\n",
+		port->rts_low);
 }
 
 static int atmel_serial_probe(struct platform_device *pdev)

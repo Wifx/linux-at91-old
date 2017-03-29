@@ -50,4 +50,11 @@ config SPI_NXP_SPIFI
 	  Flash. Enable this option if you have a device with a SPIFI
 	  controller and want to access the Flash as a mtd device.
 
+config SPI_ATMEL_QUADSPI
+	tristate "Atmel Quad SPI Controller"
+	depends on OF && HAS_DMA && (ARCH_AT91 || COMPILE_TEST)
+	help
+	  This enables support for the Quad SPI controller in master mode.
+	  We only connect the NOR to this controller now.
+
 endif # MTD_SPI_NOR

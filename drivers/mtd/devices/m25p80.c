@@ -262,15 +262,40 @@ static int m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
 static int m25p80_erase(struct spi_nor *nor, loff_t offset)
 {
 	struct m25p *flash = nor->priv;
+	struct spi_device *spi = flash->spi;
+	unsigned code_nbits, addr_nbits, num_xfers = 1;
+	struct spi_transfer xfers[2];
+	int ret;
 
 	dev_dbg(nor->dev, "%dKiB at 0x%08x\n",
 		flash->spi_nor.mtd.erasesize / 1024, (u32)offset);
 
-	/* Set up command buffer. */
-	flash->command[0] = nor->erase_opcode;
-	m25p_addr2cmd(nor, offset, flash->command);
+	/* Get transfer protocols (data_nbits is not relevant here). */
+	ret = m25p80_proto2nbits(nor->erase_proto,
+				 &code_nbits, &addr_nbits, NULL);
+	if (ret < 0)
+		return ret;
 
-	spi_write(flash->spi, flash->command, m25p_cmdsz(nor));
+	/* Set up transfers. */
+	memset(xfers, 0, sizeof(xfers));
+
+	flash->command[0] = nor->erase_opcode;
+	xfers[0].len = 1;
+	xfers[0].tx_buf = flash->command;
+	xfers[0].tx_nbits = code_nbits;
+
+	m25p_addr2cmd(nor, offset, flash->command);
+	if (code_nbits == addr_nbits) {
+		xfers[0].len += nor->addr_width;
+	} else {
+		xfers[1].len = nor->addr_width;
+		xfers[1].tx_buf = &flash->command[1];
+		xfers[1].tx_nbits = addr_nbits;
+		num_xfers++;
+	}
+
+	/* Process command. */
+	spi_sync_transfer(spi, xfers, num_xfers);
 
 	return 0;
 }

@@ -134,4 +134,7 @@ void of_sama5d4_clk_h32mx_setup(struct device_node *np,
 void of_sama5d2_clk_generated_setup(struct device_node *np,
 				    struct at91_pmc *pmc);
 
+void of_sama5d2_clk_generated_setup(struct device_node *np,
+				    struct at91_pmc *pmc);
+
 #endif /* __PMC_H_ */

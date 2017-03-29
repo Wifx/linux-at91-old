@@ -124,6 +124,15 @@
 		#size-cells = <1>;
 		ranges;
 
+		vdec0: vdec@00300000 {
+			compatible = "on2,g1";
+			reg = <0x00300000 0x1000>;
+			interrupts = <19 IRQ_TYPE_LEVEL_HIGH 4>;
+			clocks = <&vdec_clk>;
+			clock-names = "vdec_clk";
+			status = "disabled";
+		};
+
 		usb0: gadget@00400000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -295,6 +304,7 @@
 			atmel,nand-has-dma;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_nand>;
+			clocks = <&hsmc_clk>;
 			status = "disabled";
 
 			nfc@90000000 {
@@ -306,7 +316,6 @@
 					0xfc05c000 0x00000070	/* NFC HSMC regs */
 					0x00100000 0x00100000	/* NFC SRAM banks */
                                          >;
-				clocks = <&hsmc_clk>;
 				atmel,write-by-sram;
 			};
 		};

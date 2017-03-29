@@ -784,7 +784,7 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "mx25u6435f",  INFO(0xc22537, 0, 64 * 1024, 128, SECT_4K) },
 	{ "mx25l12805d", INFO(0xc22018, 0, 64 * 1024, 256, 0) },
 	{ "mx25l12855e", INFO(0xc22618, 0, 64 * 1024, 256, 0) },
-	{ "mx25l25635e", INFO(0xc22019, 0, 64 * 1024, 512, 0) },
+	{ "mx25l25635e", INFO(0xc22019, 0, 64 * 1024, 512, SPI_NOR_QUAD_READ) },
 	{ "mx25l25655e", INFO(0xc22619, 0, 64 * 1024, 512, 0) },
 	{ "mx66l51235l", INFO(0xc2201a, 0, 64 * 1024, 1024, SPI_NOR_QUAD_READ) },
 	{ "mx66l1g55g",  INFO(0xc2261b, 0, 64 * 1024, 2048, SPI_NOR_QUAD_READ) },
@@ -913,7 +913,7 @@ static const struct flash_info spi_nor_ids[] = {
 
 static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 {
-	int			tmp;
+	int			i, tmp;
 	u8			id[SPI_NOR_MAX_ID_LEN];
 	const struct flash_info	*info;
 
@@ -921,6 +921,35 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 	if (tmp < 0) {
 		dev_dbg(nor->dev, " error %d reading JEDEC ID\n", tmp);
 		return ERR_PTR(tmp);
+	}
+
+	/* Special case for Micron/Macronix qspi nor. */
+	if ((id[0] == 0xff && id[1] == 0xff && id[2] == 0xff) ||
+	    (id[0] == 0x00 && id[1] == 0x00 && id[2] == 0x00)) {
+		for (i = 0; i < ARRAY_SIZE(configs); ++i) {
+			if (configs[i].mode != mode)
+				continue;
+
+			/* Set this protocol for all commands. */
+			nor->reg_proto = configs[i].proto;
+			nor->read_proto = configs[i].proto;
+			nor->write_proto = configs[i].proto;
+			nor->erase_proto = configs[i].proto;
+
+			/*
+			 * Multiple I/O Read ID only returns the Manufacturer ID
+			 * (1 byte) and the Device ID (2 bytes). So we reset the
+			 * remaining bytes.
+			 */
+			memset(id, 0, sizeof(id));
+			tmp = nor->read_reg(nor, SPINOR_OP_MIO_RDID, id, 3);
+			if (tmp < 0) {
+				dev_dbg(nor->dev,
+					"error %d reading JEDEC ID Multi I/O\n",
+					tmp);
+				return ERR_PTR(tmp);
+			}
+		}
 	}
 
 	for (tmp = 0; tmp < ARRAY_SIZE(spi_nor_ids) - 1; tmp++) {
@@ -1071,9 +1100,16 @@ write_err:
 	return ret;
 }
 
-static int macronix_quad_enable(struct spi_nor *nor)
+/*
+ * Write status Register and configuration register with 2 bytes
+ * The first byte will be written to the status register, while the
+ * second byte will be written to the configuration register.
+ * Return negative if error occured.
+ */
+static int write_sr_cr(struct spi_nor *nor, u16 val)
 {
-	int ret, val;
+	nor->cmd_buf[0] = val & 0xff;
+	nor->cmd_buf[1] = (val >> 8);
 
 	val = read_sr(nor);
 	if (val < 0)
@@ -1087,28 +1123,72 @@ static int macronix_quad_enable(struct spi_nor *nor)
 
 	write_sr(nor, val | SR_QUAD_EN_MX);
 
-	if (spi_nor_wait_till_ready(nor))
-		return 1;
+	case SPINOR_OP_READ_FAST:
+	case SPINOR_OP_READ_1_1_2:
+	case SPINOR_OP_READ_1_1_4:
+		switch (read_dummy) {
+		case 6:
+			*dc = 1;
+			break;
+		case 8:
+			*dc = 0;
+			break;
+		case 10:
+			*dc = 3;
+			break;
+		default:
+			return -EINVAL;
+		}
+		break;
 
-	ret = read_sr(nor);
-	if (!(ret > 0 && (ret & SR_QUAD_EN_MX))) {
-		dev_err(nor->dev, "Macronix Quad bit not set\n");
+	case SPINOR_OP_READ_1_2_2:
+		switch (read_dummy) {
+		case 4:
+			*dc = 0;
+			break;
+		case 6:
+			*dc = 1;
+			break;
+		case 8:
+			*dc = 2;
+			break;
+		case 10:
+			*dc = 3;
+		default:
+			return -EINVAL;
+		}
+		break;
+
+	case SPINOR_OP_READ_1_4_4:
+		switch (read_dummy) {
+		case 4:
+			*dc = 1;
+			break;
+		case 6:
+			*dc = 0;
+			break;
+		case 8:
+			*dc = 2;
+			break;
+		case 10:
+			*dc = 3;
+		default:
+			return -EINVAL;
+		}
+		break;
+
+	default:
 		return -EINVAL;
 	}
 
 	return 0;
 }
 
-/*
- * Write status Register and configuration register with 2 bytes
- * The first byte will be written to the status register, while the
- * second byte will be written to the configuration register.
- * Return negative if error occured.
- */
-static int write_sr_cr(struct spi_nor *nor, u16 val)
+static int macronix_set_dummy_cycles(struct spi_nor *nor, u8 read_dummy)
 {
-	nor->cmd_buf[0] = val & 0xff;
-	nor->cmd_buf[1] = (val >> 8);
+	int ret, sr, mask, val;
+	u16 sr_cr;
+	u8 cr, dc;
 
 	return nor->write_reg(nor, SPINOR_OP_WRSR, nor->cmd_buf, 2);
 }

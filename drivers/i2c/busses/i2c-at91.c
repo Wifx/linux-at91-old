@@ -190,7 +190,8 @@ static void at91_init_twi_bus(struct at91_twi_dev *dev)
  * Calculate symmetric clock as stated in datasheet:
  * twi_clk = F_MAIN / (2 * (cdiv * (1 << ckdiv) + offset))
  */
-static void at91_calc_twi_clock(struct at91_twi_dev *dev, int twi_clk)
+static void at91_calc_twi_clock(struct at91_twi_dev *dev,
+				int twi_clk, u32 twd_hold)
 {
 	int ckdiv, cdiv, div, hold = 0;
 	struct at91_twi_pdata *pdata = dev->pdata;
@@ -1045,6 +1046,7 @@ static int at91_twi_probe(struct platform_device *pdev)
 	int rc;
 	u32 phy_addr;
 	u32 bus_clk_rate;
+	u32 twd_hold_cycles;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -1101,7 +1103,12 @@ static int at91_twi_probe(struct platform_device *pdev)
 	if (rc)
 		bus_clk_rate = DEFAULT_TWI_CLK_HZ;
 
-	at91_calc_twi_clock(dev, bus_clk_rate);
+	rc = of_property_read_u32(dev->dev->of_node,
+				  "atmel,twd-hold-cycles", &twd_hold_cycles);
+	if (rc)
+		twd_hold_cycles = 0;
+
+	at91_calc_twi_clock(dev, bus_clk_rate, twd_hold_cycles);
 	at91_init_twi_bus(dev);
 
 	snprintf(dev->adapter.name, sizeof(dev->adapter.name), "AT91");

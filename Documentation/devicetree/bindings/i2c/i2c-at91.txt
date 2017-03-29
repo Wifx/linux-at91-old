@@ -31,6 +31,7 @@ i2c0: i2c@fff84000 {
 	#size-cells = <0>;
 	clocks = <&twi0_clk>;
 	clock-frequency = <400000>;
+	atmel,twd-hold-cycles = <2>;
 
 	24c512@50 {
 		compatible = "24c512";

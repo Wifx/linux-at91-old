@@ -89,6 +89,25 @@
 				};
 			};
 
+			isi: isi@f0008000 {
+				status = "okay";
+				port {
+					isi_0: endpoint@0 {
+						remote-endpoint = <&ov2640_0>;
+						bus-width = <8>;
+						vsync-active = <1>;
+						hsync-active = <1>;
+					};
+
+					isi_1: endpoint@1 {
+						remote-endpoint = <&ov7740_0>;
+						bus-width = <8>;
+						vsync-active = <1>;
+						hsync-active = <1>;
+					};
+				};
+			};
+
 			adc0: adc@fc034000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <
@@ -183,7 +202,7 @@
 			};
 
 			usart2: serial@fc008000 {
-				status = "okay";
+				status = "disabled"; /* confict with ISI pins & sensor power pin */
 			};
 
 			usart3: serial@fc00c000 {
@@ -212,17 +231,33 @@
 						atmel,pins =
 							<AT91_PIOE 6 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_UP_DEGLITCH>;
 					};
+					pinctrl_mxt_ts: mxt_irq {
+						atmel,pins =
+							<AT91_PIOE 24 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_UP_DEGLITCH>;
+					};
+					pinctrl_pck1_as_isi_mck: pck1_as_isi_mck-0 {
+						atmel,pins =
+							<AT91_PIOC 4 AT91_PERIPH_C AT91_PINCTRL_NONE>;	/* PC4 periph C PCK1, conflicted with SPI0_NPCS1, MCI0_CK */
+					};
 					pinctrl_pck2_as_audio_mck: pck2_as_audio_mck {
 						atmel,pins =
 							<AT91_PIOB 10 AT91_PERIPH_B AT91_PINCTRL_NONE>;
 					};
+					pinctrl_qt1070_irq: qt1070_irq {
+						atmel,pins =
+							<AT91_PIOE 25 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_UP_DEGLITCH>;
+					};
+					pinctrl_sensor_reset: sensor_reset-0 {
+						atmel,pins =
+							<AT91_PIOB 11 AT91_PERIPH_GPIO AT91_PINCTRL_NONE>;   /* PB11 gpio */
+					};
+					pinctrl_sensor_power: sensor_power-0 {
+						atmel,pins =
+							<AT91_PIOB 5 AT91_PERIPH_GPIO AT91_PINCTRL_NONE>; /* PB5 gpio */
+					};
 					pinctrl_usba_vbus: usba_vbus {
 						atmel,pins =
 							<AT91_PIOE 31 AT91_PERIPH_GPIO AT91_PINCTRL_DEGLITCH>;
-					};
-					pinctrl_key_gpio: key_gpio_0 {
-						atmel,pins =
-							<AT91_PIOE 13 AT91_PERIPH_GPIO AT91_PINCTRL_PULL_UP_DEGLITCH>; /* PE13 gpio */
 					};
 					pinctrl_qt1070_irq: qt1070_irq {
 						atmel,pins =
@@ -234,6 +269,10 @@
 					};
 				};
 			};
+		};
+
+		vdec0: vdec@00300000 {
+			status = "okay";
 		};
 
 		usb0: gadget@00400000 {

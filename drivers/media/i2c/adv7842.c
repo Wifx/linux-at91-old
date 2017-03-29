@@ -2065,6 +2065,7 @@ static int adv7842_get_format(struct v4l2_subdev *sd,
 			      struct v4l2_subdev_pad_config *cfg,
 			      struct v4l2_subdev_format *format)
 {
+	struct v4l2_mbus_framefmt *fmt = &format->format;
 	struct adv7842_state *state = to_state(sd);
 
 	if (format->pad != ADV7842_PAD_SOURCE)
@@ -3055,6 +3056,9 @@ static const struct v4l2_subdev_pad_ops adv7842_pad_ops = {
 	.set_edid = adv7842_set_edid,
 	.enum_dv_timings = adv7842_enum_dv_timings,
 	.dv_timings_cap = adv7842_dv_timings_cap,
+	.enum_mbus_code = adv7842_enum_mbus_code,
+	.get_fmt = adv7842_fill_fmt,
+	.set_fmt = adv7842_fill_fmt,
 };
 
 static const struct v4l2_subdev_ops adv7842_ops = {

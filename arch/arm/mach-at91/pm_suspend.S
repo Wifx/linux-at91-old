@@ -124,24 +124,22 @@ ENTRY(at91_pm_suspend_in_sram)
 
 	ldr	pmc, .pmc_base
 
-	/* Save Master clock setting */
+	/* Save PMC_MCKR config */
 	ldr	tmp1, [pmc, #AT91_PMC_MCKR]
 	str	tmp1, .saved_mckr
 
-	/*
-	 * Set the Master clock source to slow clock
-	 */
+	/* Switch master clock source to slow clock */
 	bic	tmp1, tmp1, #AT91_PMC_CSS
 	str	tmp1, [pmc, #AT91_PMC_MCKR]
 
 	wait_mckrdy
 
-	/* Save PLLA setting and disable it */
+	/* Save PLLA config and Disable PLLA */
 	ldr	tmp1, [pmc, #AT91_CKGR_PLLAR]
 	str	tmp1, .saved_pllar
 
 	mov	tmp1, #AT91_PMC_PLLCOUNT
-	orr	tmp1, tmp1, #(1 << 29)		/* bit 29 always set */
+	orr	tmp1, tmp1, #(1 << 29)
 	str	tmp1, [pmc, #AT91_CKGR_PLLAR]
 
 	ldr	r0, .ulp_mode
@@ -163,16 +161,14 @@ ulp_exit:
 	str	tmp1, [pmc, #AT91_CKGR_PLLAR]
 
 	tst	tmp1, #(AT91_PMC_MUL &  0xff0000)
-	bne	3f
+	bne	1f
 	tst	tmp1, #(AT91_PMC_MUL & ~0xff0000)
-	beq	4f
-3:
+	beq	2f
+1:
 	wait_pllalock
-4:
+2:
 
-	/*
-	 * Restore master clock setting
-	 */
+	/* Restore PMC_MCKR config */
 	ldr	tmp1, .saved_mckr
 	str	tmp1, [pmc, #AT91_PMC_MCKR]
 
