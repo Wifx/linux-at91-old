@@ -123,6 +123,11 @@ static int boot_state_get(struct attiny *attiny, uint8_t *boot_state)
 	return ret;
 }
 
+static int boot_state_clr(struct attiny *attiny)
+{
+    return pmic_lorix_write(attiny, REG_LAST_RESET_STATE, 0xFF);
+}
+
 static int fw_version_get(struct attiny *attiny, char *str)
 {
 	int ret;
@@ -292,10 +297,22 @@ static ssize_t boot_state_show(struct device *dev,
 	uint8_t boot_state;
 
 	boot_state_get(attiny, &boot_state);
-	return sprintf(buf, "0x%02X\n", boot_state);
+	return sprintf(buf, "%d\n", boot_state);
 }
 
+static ssize_t boot_state_store(struct device *dev,
+                struct device_attribute *attr,
+                const char *buf, size_t count)
+{
+    struct attiny *attiny = dev_get_drvdata(dev);
+    int inval;
 
+    sscanf(buf, "%du", &inval);
+    if(inval != 0){
+        boot_state_clr(attiny);
+    }
+    return count;
+}
 
 static ssize_t fw_version_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -357,7 +374,7 @@ static ssize_t product_type_show(struct device *dev,
     }
 }
 
-static DEVICE_ATTR(boot_state, S_IRUGO, boot_state_show, NULL);
+static DEVICE_ATTR(boot_state, (S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP|S_IROTH), boot_state_show, boot_state_store);
 static DEVICE_ATTR(fw_version, S_IRUGO, fw_version_show, NULL);
 static DEVICE_ATTR(hw_version, S_IRUGO, hw_version_show, NULL);
 static DEVICE_ATTR(product_name, S_IRUGO, product_name_show, NULL);
