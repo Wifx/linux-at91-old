@@ -1818,7 +1818,7 @@ static irqreturn_t usba_vbus_irq_thread(int irq, void *devid)
 	int vbus;
 
 	/* debounce */
-	udelay(10);
+	mdelay(10);
 
 	dev_dbg(&udc->pdev->dev, "ID value: %s\n", id_is_device(udc) ? "device" : "host");
 	if (!id_is_device(udc)) {

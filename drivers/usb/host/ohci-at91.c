@@ -355,7 +355,12 @@ static int ohci_at91_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 		case USB_PORT_FEAT_POWER:
 			dev_dbg(hcd->self.controller, "SetPortFeat: POWER\n");
 			if (valid_port(wIndex)) {
-				ohci_at91_usb_set_power(pdata, wIndex, 1);
+				if(!gpio_is_valid(pdata->id_pin[wIndex]) || !gpio_get_value(pdata->id_pin[wIndex])){
+					ohci_at91_usb_set_power(pdata, wIndex, 1);
+				}else{
+					dev_dbg(hcd->self.controller,
+									"Passed, device mode\n");
+				}
 				ret = 0;
 			}
 
@@ -586,6 +591,36 @@ static int ohci_hcd_at91_drv_probe(struct platform_device *pdev)
 		pdata->ports = ports;
 
 	at91_for_each_port(i) {
+	    if (i >= pdata->ports)
+	        break;
+
+	    pdata->id_pin[i] =
+	        of_get_named_gpio_flags(np, "atmel,id-gpio", i, &flags);
+
+	    if (!gpio_is_valid(pdata->id_pin[i]))
+	        continue;
+
+		gpio = pdata->id_pin[i];
+
+		ret = gpio_request(gpio, "ohci_otg_id");
+		if (ret) {
+			dev_err(&pdev->dev,
+				"can't request OTG ID gpio %d\n",
+				gpio);
+			continue;
+		}
+
+		ret = gpio_direction_input(gpio);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"can't configure OTG ID gpio %d as input\n",
+				gpio);
+			gpio_free(gpio);
+			continue;
+		}
+	}
+
+	at91_for_each_port(i) {
 		/*
 		 * do not configure PIO if not in relation with
 		 * real USB port on board
@@ -611,16 +646,20 @@ static int ohci_hcd_at91_drv_probe(struct platform_device *pdev)
 			continue;
 		}
 		ret = gpio_direction_output(gpio,
-					!pdata->vbus_pin_active_low[i]);
+					pdata->vbus_pin_active_low[i]);
 		if (ret) {
 			dev_err(&pdev->dev,
 				"can't put vbus gpio %d as output %d\n",
-				gpio, !pdata->vbus_pin_active_low[i]);
+				gpio, pdata->vbus_pin_active_low[i]);
 			gpio_free(gpio);
 			continue;
 		}
 
-		ohci_at91_usb_set_power(pdata, i, 1);
+		if (gpio_is_valid(pdata->id_pin[i])){
+			ohci_at91_usb_set_power(pdata, i, !gpio_get_value(pdata->id_pin[i]));
+		} else {
+			ohci_at91_usb_set_power(pdata, i, 1);
+		}
 	}
 
 	at91_for_each_port(i) {
@@ -665,30 +704,10 @@ static int ohci_hcd_at91_drv_probe(struct platform_device *pdev)
 	    if (i >= pdata->ports)
 	        break;
 
-	    pdata->id_pin[i] =
-	        of_get_named_gpio_flags(np, "atmel,id-gpio", i, &flags);
-
 	    if (!gpio_is_valid(pdata->id_pin[i]))
 	        continue;
 
 		gpio = pdata->id_pin[i];
-
-		ret = gpio_request(gpio, "ohci_otg_id");
-		if (ret) {
-			dev_err(&pdev->dev,
-				"can't request OTG ID gpio %d\n",
-				gpio);
-			continue;
-		}
-
-		ret = gpio_direction_input(gpio);
-		if (ret) {
-			dev_err(&pdev->dev,
-				"can't configure OTG ID gpio %d as input\n",
-				gpio);
-			gpio_free(gpio);
-			continue;
-		}
 
 		ret = request_irq(gpio_to_irq(gpio),
 				  ohci_hcd_at91_otg_id_irq,
