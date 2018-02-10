@@ -133,26 +133,10 @@ static int __init attiny_led_probe(struct platform_device *pdev)
 
 	leds->num_leds = pdata->num_leds;
 
-	/*if ((leds->num_leds < 1) ||
-		(leds->num_leds > (devtype->led_max - devtype->led_min + 1))) {
-		dev_err(dev, "Invalid LED count %d\n", leds->num_leds);
-		return -EINVAL;
-	}*/
-
 	leds->led = devm_kzalloc(dev, leds->num_leds * sizeof(*leds->led),
 				 GFP_KERNEL);
 	if (!leds->led)
 		return -ENOMEM;
-
-	for (i = 0; i < 1; i++) {
-		/*ret = mc13xxx_reg_write(atdev, leds->devtype->ledctrl_base + i,
-					pdata->led_control[i]);
-		*/
-		ret = 0;
-
-		if (ret)
-			return ret;
-	}
 
 	for (i = 0; i < leds->num_leds; i++) {
 		const char *name, *trig;
