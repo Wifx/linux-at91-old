@@ -46,14 +46,14 @@
 #include "at91-sama5d4_lorix_one_base.dtsi"
 
 / {
-	model = "Wifx LORIX One";
+	model = "Wifx LORIX One (512MB NAND version)";
 	ahb {
 		nand0: nand@80000000 {
 			nand-bus-width = <8>;
 			nand-ecc-mode = "hw";
 			nand-on-flash-bbt;
 			atmel,has-pmecc;
-			atmel,pmecc-cap = <4>;
+			atmel,pmecc-cap = <8>;
 			atmel,pmecc-sector-size = <512>;
 			status = "okay";
 
@@ -84,7 +84,7 @@
 
 			rootfs@800000 {
 				label = "rootfs";
-				reg = <0x800000 0x0f800000>;
+				reg = <0x800000 0x1f800000>;
 			};
 		};
 	};
