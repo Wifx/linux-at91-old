@@ -343,6 +343,7 @@ struct usba_udc {
 	int irq;
 	int vbus_pin;
 	int vbus_pin_inverted;
+	int id_pin;
 	int num_ep;
 	int configured_ep;
 	struct usba_fifo_cfg *fifo_cfg;
@@ -356,6 +357,7 @@ struct usba_udc {
 
 	u16 test_mode;
 	int vbus_prev;
+	int id_prev;
 
 	u32 int_enb_cache;
 
