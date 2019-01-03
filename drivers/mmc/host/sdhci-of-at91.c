@@ -31,6 +31,7 @@
 
 #define SDMMC_MC1R	0x204
 #define		SDMMC_MC1R_FCD		BIT(7)
+#define		SDMMC_MC1R_DDR		BIT(3)
 #define SDMMC_CACR	0x230
 #define		SDMMC_CACR_CAPWREN	BIT(0)
 #define		SDMMC_CACR_KEY		(0x46 << 8)
@@ -99,11 +100,18 @@ static void sdhci_at91_reset(struct sdhci_host *host, u8 mask)
 	}
 }
 
+void sdhci_at91_set_uhs_signaling(struct sdhci_host *host, unsigned int timing)
+{
+	if (timing == MMC_TIMING_MMC_DDR52)
+		sdhci_writeb(host, SDMMC_MC1R_DDR, SDMMC_MC1R);
+	sdhci_set_uhs_signaling(host, timing);
+}
+
 static const struct sdhci_ops sdhci_at91_sama5d2_ops = {
 	.set_clock		= sdhci_at91_set_clock,
 	.set_bus_width		= sdhci_set_bus_width,
 	.reset			= sdhci_at91_reset,
-	.set_uhs_signaling	= sdhci_set_uhs_signaling,
+	.set_uhs_signaling	= sdhci_at91_set_uhs_signaling,
 };
 
 static const struct sdhci_pltfm_data soc_data_sama5d2 = {
