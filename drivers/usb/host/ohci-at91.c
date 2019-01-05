@@ -101,8 +101,6 @@ static void at91_start_hc(struct platform_device *pdev)
 	struct ohci_regs __iomem *regs = hcd->regs;
 	struct ohci_at91_priv *ohci_at91 = hcd_to_ohci_at91_priv(hcd);
 
-	dev_dbg(&pdev->dev, "start\n");
-
 	/*
 	 * Start the USB clocks.
 	 */
@@ -119,8 +117,6 @@ static void at91_stop_hc(struct platform_device *pdev)
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct ohci_regs __iomem *regs = hcd->regs;
 	struct ohci_at91_priv *ohci_at91 = hcd_to_ohci_at91_priv(hcd);
-
-	dev_dbg(&pdev->dev, "stop\n");
 
 	/*
 	 * Put the USB host controller into reset.
@@ -535,7 +531,7 @@ static irqreturn_t ohci_hcd_at91_otg_id_irq(int irq, void *data)
 	}
 
 	/* debounce */
-	mdelay(10);
+	udelay(10);
 
 	val = gpio_get_value(gpio);
 

@@ -1922,7 +1922,11 @@ static int usba_start(struct usba_udc *udc)
 		return ret;
 
 	spin_lock_irqsave(&udc->lock, flags);
+
+	dev_dbg(&udc->pdev->dev, "Enable bias\n");
 	toggle_bias(udc, 1);
+	
+	dev_dbg(&udc->pdev->dev, "Switch to device\n");
 	usba_writel(udc, CTRL, USBA_ENABLE_MASK);
 	usba_int_enb_set(udc, USBA_END_OF_RESET);
 	spin_unlock_irqrestore(&udc->lock, flags);
@@ -1939,7 +1943,10 @@ static void usba_stop(struct usba_udc *udc)
 	reset_all_endpoints(udc);
 
 	/* This will also disable the DP pullup */
+	dev_dbg(&udc->pdev->dev, "Disable bias\n");
 	toggle_bias(udc, 0);
+
+	dev_dbg(&udc->pdev->dev, "Switch to host\n");
 	usba_writel(udc, CTRL, USBA_DISABLE_MASK);
 	spin_unlock_irqrestore(&udc->lock, flags);
 
@@ -1952,23 +1959,16 @@ static irqreturn_t usba_vbus_irq_thread(int irq, void *devid)
 	int vbus;
 
 	/* debounce */
-	mdelay(10);
-
-	dev_dbg(&udc->pdev->dev, "ID value: %s\n", id_is_device(udc) ? "device" : "host");
-	if (!id_is_device(udc)) {
-		udc->id_prev = 0;
-		usba_writel(udc, CTRL, USBA_DISABLE_MASK);
-		return IRQ_HANDLED;
-	}
-
-	if (udc->id_prev != id_is_device(udc)) {
-		udc->id_prev = 1;
-		return IRQ_HANDLED;
-	}
+	udelay(10);
 
 	mutex_lock(&udc->vbus_mutex);
 
 	vbus = vbus_is_present(udc);
+	dev_dbg(&udc->pdev->dev, "VBUS irq: %s\n", vbus?"power on":"power off");
+
+	/* test level of ID pin */
+	dev_dbg(&udc->pdev->dev, "ID value: %s\n", id_is_device(udc)?"device":"host");
+
 	if (vbus != udc->vbus_prev) {
 		if (vbus && id_is_device(udc)) {
 			usba_start(udc);
@@ -1991,7 +1991,8 @@ static int atmel_usba_start(struct usb_gadget *gadget,
 	int ret;
 	struct usba_udc *udc = container_of(gadget, struct usba_udc, gadget);
 	unsigned long flags;
-
+	int id;
+	
 	spin_lock_irqsave(&udc->lock, flags);
 	udc->devstatus = 1 << USB_DEVICE_SELF_POWERED;
 	udc->driver = driver;
@@ -2004,7 +2005,18 @@ static int atmel_usba_start(struct usb_gadget *gadget,
 
 	/* If Vbus is present, enable the controller and wait for reset */
 	udc->vbus_prev = vbus_is_present(udc);
-	if (udc->vbus_prev) {
+
+	/* Check ID pin status */
+	if (gpio_is_valid(udc->id_pin)) {
+		id = id_is_device(udc);
+		dev_dbg(&udc->pdev->dev, "ID value: %s\n", id?"device":"host");
+	} else {
+		/* ID pin not valid, assuming device */
+		id = 1;
+	}
+
+	/* Only activate device mode if VBUS is present and ID is device */
+	if (udc->vbus_prev && id) {
 		ret = usba_start(udc);
 		if (ret)
 			goto err;
@@ -2309,6 +2321,8 @@ static int usba_udc_probe(struct platform_device *pdev)
 	if (!udc)
 		return -ENOMEM;
 
+	dev_dbg(&pdev->dev, "Driver probing\n");
+
 	udc->gadget = usba_gadget_template;
 	INIT_LIST_HEAD(&udc->gadget.ep_list);
 
@@ -2361,6 +2375,7 @@ static int usba_udc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	dev_dbg(&pdev->dev, "Switch to host by default\n");
 	usba_writel(udc, CTRL, USBA_DISABLE_MASK);
 	clk_disable_unprepare(pclk);
 
@@ -2369,6 +2384,7 @@ static int usba_udc_probe(struct platform_device *pdev)
 	else
 		udc->usba_ep = usba_udc_pdata(pdev, udc);
 
+	dev_dbg(&pdev->dev, "Disable bias\n");
 	toggle_bias(udc, 0);
 
 	if (IS_ERR(udc->usba_ep))
@@ -2437,6 +2453,8 @@ static int usba_udc_suspend(struct device *dev)
 {
 	struct usba_udc *udc = dev_get_drvdata(dev);
 
+	dev_dbg(&udc->pdev->dev, "Power suspend\n");
+
 	/* Not started */
 	if (!udc->driver)
 		return 0;
@@ -2465,6 +2483,8 @@ out:
 static int usba_udc_resume(struct device *dev)
 {
 	struct usba_udc *udc = dev_get_drvdata(dev);
+
+	dev_dbg(&udc->pdev->dev, "Power resume\n");
 
 	/* Not started */
 	if (!udc->driver)
