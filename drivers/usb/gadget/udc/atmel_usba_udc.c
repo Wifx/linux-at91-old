@@ -425,15 +425,6 @@ static int vbus_is_present(struct usba_udc *udc)
 	return 1;
 }
 
-static int id_is_device(struct usba_udc *udc)
-{
-    if (gpio_is_valid(udc->id_pin))
-        return gpio_get_value(udc->id_pin);
-
-    /* No ID detection: Assume always device */
-    return 1;
-}
-
 static void toggle_bias(struct usba_udc *udc, int is_on)
 {
 	if (udc->errata && udc->errata->toggle_bias)
@@ -1952,25 +1943,13 @@ static irqreturn_t usba_vbus_irq_thread(int irq, void *devid)
 	int vbus;
 
 	/* debounce */
-	mdelay(10);
-
-	dev_dbg(&udc->pdev->dev, "ID value: %s\n", id_is_device(udc) ? "device" : "host");
-	if (!id_is_device(udc)) {
-		udc->id_prev = 0;
-		usba_writel(udc, CTRL, USBA_DISABLE_MASK);
-		return IRQ_HANDLED;
-	}
-
-	if (udc->id_prev != id_is_device(udc)) {
-		udc->id_prev = 1;
-		return IRQ_HANDLED;
-	}
+	udelay(10);
 
 	mutex_lock(&udc->vbus_mutex);
 
 	vbus = vbus_is_present(udc);
 	if (vbus != udc->vbus_prev) {
-		if (vbus && id_is_device(udc)) {
+		if (vbus) {
 			usba_start(udc);
 		} else {
 			usba_stop(udc);
@@ -2102,9 +2081,6 @@ static struct usba_ep * atmel_udc_of_init(struct platform_device *pdev,
 	udc->vbus_pin = of_get_named_gpio_flags(np, "atmel,vbus-gpio", 0,
 						&flags);
 	udc->vbus_pin_inverted = (flags & OF_GPIO_ACTIVE_LOW) ? 1 : 0;
-
-	udc->id_pin = of_get_named_gpio_flags(np, "atmel,id-gpio", 0,
-						&flags);
 
 	if (fifo_mode == 0) {
 		pp = NULL;
@@ -2258,7 +2234,6 @@ static struct usba_ep * usba_udc_pdata(struct platform_device *pdev,
 
 	udc->vbus_pin = pdata->vbus_pin;
 	udc->vbus_pin_inverted = pdata->vbus_pin_inverted;
-	udc->id_pin = pdata->id_pin;
 	udc->num_ep = pdata->num_ep;
 
 	INIT_LIST_HEAD(&eps[0].ep.ep_list);
@@ -2334,7 +2309,6 @@ static int usba_udc_probe(struct platform_device *pdev)
 	udc->pclk = pclk;
 	udc->hclk = hclk;
 	udc->vbus_pin = -ENODEV;
-	udc->id_pin = -ENODEV;
 
 	ret = -ENOMEM;
 	udc->regs = devm_ioremap(&pdev->dev, regs->start, resource_size(regs));

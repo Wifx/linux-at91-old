@@ -454,17 +454,6 @@ config LEDS_ADP5520
 	  To compile this driver as a module, choose M here: the module will
 	  be called leds-adp5520.
 
-config LEDS_LORIX_ONE
-	tristate "LED support for LORIX One PMIC (Status LED)"
-	depends on LEDS_CLASS
-	depends on PMIC_LORIX_ONE
-	help
-	  This option enables support for on-chip LED drivers managed
-	  by the integrated custom PMIC.
-
-	  To compile this driver as a module, choose M here: the module will
-	  be called leds-pmic-lorix.
-
 config LEDS_DELL_NETBOOKS
 	tristate "External LED on Dell Business Netbooks"
 	depends on LEDS_CLASS
