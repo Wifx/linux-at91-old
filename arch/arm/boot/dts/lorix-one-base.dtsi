@@ -1,8 +1,10 @@
 /*
- * at91-sama5d4_lorix_one.dts - Device Tree file for SAMA5D4 LORIX One board
+ * lorix-one-base.dtsi
+ *  Device Tree file for the LORIX One (generic) LoRa gateway from
+ *  Wifx Sàrl
  *
- *  Copyright (C) 2016 Wifx,
- *                2016 Yannick Lanz <yannick.lanz@gmail.com>
+ *  Copyright (C) 2018 Wifx,
+ *                2018 Yannick Lanz <yannick.lanz@wifx.net>
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPL or the X11 license, at your option. Note that this dual
@@ -44,16 +46,14 @@
  */
 #include "sama5d4.dtsi"
 / {
-	model = "Wifx LORIX One";
-	compatible = "atmel,sama5d4-lorix-one", "atmel,sama5d4", "atmel,sama5";
+	compatible = "atmel,sama5d4", "atmel,sama5";
 
 	chosen {
-		bootargs = "ignore_loglevel earlyprintk";
 		stdout-path = "serial0:115200n8";
 	};
 
 	memory {
-		reg = <0x20000000 0x20000000>;
+		reg = <0x20000000 0x08000000>;
 	};
 
 	clocks {
@@ -95,6 +95,12 @@
 					reg = <0x4d>;
 					status = "okay";
 				};
+
+				i2c_eeprom: i2c_eeprom@58 {
+					compatible = "atmel,24mac402";
+					reg = <0x58>;
+					status = "okay";
+				};
 			};
 
 			i2c2: i2c@f8024000 {
@@ -110,17 +116,23 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 
-				/*
 				pmic: act8865@5b {
 					compatible = "active-semi,act8865";
 					reg = <0x5b>;
-					status = "okay";
+					status = "disabled";
 
 					regulators {
 						vcc_1v8_reg: DCDC_REG1 {
 							regulator-name = "VCC_1V8";
 							regulator-min-microvolt = <1800000>;
 							regulator-max-microvolt = <1800000>;
+							regulator-always-on;
+						};
+
+						vcc_1v2_reg: DCDC_REG2 {
+							regulator-name = "VCC_1V2";
+							regulator-min-microvolt = <1200000>;
+							regulator-max-microvolt = <1200000>;
 							regulator-always-on;
 						};
 
@@ -139,7 +151,6 @@
 						};
 					};
 				};
-				*/
 			};
 
 			sfr: sfr@f8028000 {
@@ -239,24 +250,6 @@
 		};
 	};
 
-	leds {
-		compatible = "gpio-leds";
-		status = "okay";
-
-		led_power {
-			label = "power";
-			gpios = <&pioD 30 GPIO_ACTIVE_HIGH>;
-			default-state = "off";
-		};
-
-		led_sys {
-			label = "sys";
-			gpios = <&pioE 15 GPIO_ACTIVE_HIGH>;
-			default-state = "off";
-			linux,default-trigger = "heartbeat";
-		};
-	};
-
 	i2cmux {
 		compatible = "i2c-mux-gpio";
 		#address-cells = <1>;
@@ -295,14 +288,6 @@
 		regulator-name = "VDDBU 2V";
 		regulator-min-microvolt = <2000000>;
 		regulator-max-microvolt = <2000000>;
-		regulator-boot-on;
-		regulator-always-on;
-	};
-
-	vcc_3v3_reg: fixedregulator@1 {
-		regulator-name = "VCC_3V3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
 		regulator-boot-on;
 		regulator-always-on;
 	};

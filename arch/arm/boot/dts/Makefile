@@ -75,8 +75,8 @@ dtb-$(CONFIG_SOC_SAM_V7) += \
 	at91-sama5d4ek.dtb \
 	at91-sama5d4ek_isi.dtb \
 	at91-vinco.dtb \
-	at91-sama5d4_lorix_one.dtb \
-	at91-sama5d4_lorix_one_512.dtb
+	lorix-one.dtb \
+	lorix-one-512.dtb
 dtb-$(CONFIG_ARCH_ATLAS6) += \
 	atlas6-evb.dtb
 dtb-$(CONFIG_ARCH_ATLAS7) += \
