@@ -99,8 +99,6 @@ static void at91_start_hc(struct platform_device *pdev)
 	struct ohci_regs __iomem *regs = hcd->regs;
 	struct ohci_at91_priv *ohci_at91 = hcd_to_ohci_at91_priv(hcd);
 
-	dev_dbg(&pdev->dev, "start\n");
-
 	/*
 	 * Start the USB clocks.
 	 */
@@ -117,8 +115,6 @@ static void at91_stop_hc(struct platform_device *pdev)
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct ohci_regs __iomem *regs = hcd->regs;
 	struct ohci_at91_priv *ohci_at91 = hcd_to_ohci_at91_priv(hcd);
-
-	dev_dbg(&pdev->dev, "stop\n");
 
 	/*
 	 * Put the USB host controller into reset.
@@ -519,7 +515,7 @@ static irqreturn_t ohci_hcd_at91_otg_id_irq(int irq, void *data)
 	}
 
 	/* debounce */
-	mdelay(10);
+	udelay(10);
 
 	val = gpiod_get_value(pdata->id_pin[port]);
 
@@ -578,6 +574,8 @@ static int ohci_hcd_at91_drv_probe(struct platform_device *pdev)
 		pdata->id_pin[i] =
 			devm_gpiod_get_index_optional(&pdev->dev, "atmel,id",
 						      i, GPIOD_IN);
+		if (!pdata->id_pin[i])
+			continue;
 		if (IS_ERR(pdata->id_pin[i])) {
 			err = PTR_ERR(pdata->id_pin[i]);
 			dev_err(&pdev->dev, "unable to claim gpio \"id\": %d\n", err);
@@ -599,7 +597,7 @@ static int ohci_hcd_at91_drv_probe(struct platform_device *pdev)
 
 		pdata->vbus_pin[i] =
 			devm_gpiod_get_index_optional(&pdev->dev, "atmel,vbus",
-						      i, GPIOD_OUT_HIGH);
+						      i, GPIOD_OUT_LOW);
 		if (IS_ERR(pdata->vbus_pin[i])) {
 			err = PTR_ERR(pdata->vbus_pin[i]);
 			dev_err(&pdev->dev, "unable to claim gpio \"vbus\": %d\n", err);

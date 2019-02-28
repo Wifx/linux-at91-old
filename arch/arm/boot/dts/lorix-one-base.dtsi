@@ -59,7 +59,7 @@
     };
 
     memory {
-        reg = <0x20000000 0x20000000>;
+        reg = <0x20000000 0x08000000>;
     };
 
     clocks {
@@ -104,6 +104,13 @@
                     reg = <0x58>;
                     status = "okay";
                 };
+            };
+
+            i2c2: i2c@f8024000 {
+                status = "okay";
+
+                #address-cells = <1>;
+                #size-cells = <0>;
             };
 
             i2c3: i2c@fc038000 {
@@ -229,7 +236,7 @@
             atmel,id-gpio = <&pioD 11 GPIO_ACTIVE_HIGH>;
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_usba_vbus>;
-            status = "disabled";
+            status = "okay";
         };
 
         usb1: ohci@500000 {
@@ -244,11 +251,11 @@
             >;
             pinctrl-names = "default";
             pinctrl-0 = <&pinctrl_usb_id>;
-            status = "disabled";
+            status = "okay";
         };
 
         usb2: ehci@600000 {
-            status = "disabled";
+            status = "okay";
         };
 
         ebi: ebi@10000000 {
@@ -257,24 +264,6 @@
                      &pinctrl_ebi_data_0_7 &pinctrl_ebi_nand_addr>;
             pinctrl-names = "default";
             status = "okay";
-        };
-    };
-
-    leds {
-        compatible = "gpio-leds";
-        status = "okay";
-
-        led_power {
-            label = "power";
-            gpios = <&pioD 30 GPIO_ACTIVE_HIGH>;
-            default-state = "off";
-        };
-
-        led_sys {
-            label = "sys";
-            gpios = <&pioE 15 GPIO_ACTIVE_HIGH>;
-            default-state = "off";
-            linux,default-trigger = "heartbeat";
         };
     };
 
