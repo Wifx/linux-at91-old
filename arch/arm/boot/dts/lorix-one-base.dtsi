@@ -3,6 +3,11 @@
  *  Device Tree file for the LORIX One (generic) LoRa gateway from
  *  Wifx Sàrl
  *
+ * Based on at91-sama5d4_xplained.dts
+ *  Device Tree file for SAMA5D4 Xplained board
+ *
+ *  Copyright (C) 2015 Atmel,
+ *                2015 Josh Wu <josh.wu@atmel.com>
  *  Copyright (C) 2018 Wifx,
  *                2018 Yannick Lanz <yannick.lanz@wifx.net>
  *
