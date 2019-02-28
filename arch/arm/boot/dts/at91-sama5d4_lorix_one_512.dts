@@ -1,8 +1,10 @@
 /*
- * at91-sama5d4_lorix_one.dts - Device Tree file for SAMA5D4 LORIX One board
+ * at91-sama5d4_lorix_one_512.dts
+ *  Device Tree file for the LORIX One (512MB) LoRa gateway from
+ *  Wifx Sàrl
  *
  *  Copyright (C) 2016 Wifx,
- *                2016 Yannick Lanz <yannick.lanz@gmail.com>
+ *                2016 Yannick Lanz <yannick.lanz@wifx.net>
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPL or the X11 license, at your option. Note that this dual
